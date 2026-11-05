@@ -1,0 +1,43 @@
+# Backline · base de datos para desarrollo
+# Levantar:            docker compose up -d --wait
+# Reiniciar desde cero: docker compose down -v && docker compose up -d
+name: backline-db
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    container_name: backline-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copia .env.example a .env y define POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      TZ: America/Mexico_City
+      PGTZ: America/Mexico_City
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Los scripts de esta carpeta se ejecutan en orden alfabético la primera vez
+      # que arranca el contenedor (cuando el volumen está vacío).
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ./db/verificacion:/verificacion:ro
+      - datos:/var/lib/postgresql/data
+    healthcheck:
+      # Sano solo cuando terminó el último script (pg_isready respondería antes, a mitad de la carga)
+      test: ["CMD-SHELL", "psql -U postgres -d backline_notificaciones -tAc 'SELECT 1 FROM notificacion LIMIT 1' | grep -q 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  adminer:
+    image: adminer:4.8.1
+    container_name: backline-adminer
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  datos:

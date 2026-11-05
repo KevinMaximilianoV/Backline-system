@@ -1,0 +1,1426 @@
+openapi: 3.1.0
+info:
+  title: Backline API
+  version: 1.1.0-borrador
+  summary: Coordinación de tocadas entre bandas independientes y foros de Querétaro.
+  description: |
+    Contrato de la API pública de Backline, expuesta por el API Gateway.
+    Todas las rutas son relativas a `/api/v1`. Los errores siguen RFC 9457 (Problem Details)
+    con `Content-Type: application/problem+json`.
+
+    Servicios dueños de cada grupo de rutas: Identidad (`/usuarios`, `/sesiones`),
+    Perfiles (`/catalogos`, `/bandas`, `/foros`), Booking (`/franjas`, `/solicitudes`),
+    Notificaciones (`/notificaciones`) y API Gateway (`/disponibilidad`).
+
+    **Cambios 1.1.0 (Entrega 5, MVP Backend I):** se agregan E-34 `GET /bandas`,
+    E-35 `DELETE /bandas/{bandaId}` y E-36 `DELETE /foros/{foroId}` (baja lógica).
+    Mientras no exista autenticación (Entrega 6), `POST /bandas` y `POST /foros`
+    reciben temporalmente el `id` de la cuenta dueña en el cuerpo.
+  contact:
+    name: Equipo Megapapo, ISW-27
+  license:
+    name: Uso académico
+servers:
+  - url: https://api.backline.mx/api/v1
+    description: Producción (prevista)
+  - url: http://localhost:8080/api/v1
+    description: Desarrollo con Docker Compose
+security:
+  - bearerAuth: []
+tags:
+  - name: Identidad
+    description: Cuentas, sesiones y administración de usuarios.
+  - name: Perfiles
+    description: Catálogos, perfiles de bandas y foros, rider e inventario.
+  - name: Booking
+    description: Agenda de franjas, compatibilidad y solicitudes.
+  - name: Disponibilidad
+    description: Vista compuesta por el API Gateway con datos de Booking y Perfiles.
+  - name: Notificaciones
+    description: Avisos dentro de la aplicación.
+
+paths:
+  # ---------------------------------------------------------------- Identidad
+  /usuarios:
+    post:
+      tags: [Identidad]
+      operationId: registrarUsuario
+      summary: E-01 Registrar una cuenta de banda o foro
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioNuevo' }
+            example: { correo: desvelados@correo.com, contrasena: Escenario2026, rol: banda }
+      responses:
+        '201':
+          description: Cuenta creada.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+    get:
+      tags: [Identidad]
+      operationId: listarUsuarios
+      summary: E-04 Listar cuentas (solo administrador)
+      parameters:
+        - $ref: '#/components/parameters/pagina'
+        - $ref: '#/components/parameters/porPagina'
+        - { name: correo, in: query, schema: { type: string, maxLength: 254 }, description: Texto contenido en el correo. }
+        - { name: rol, in: query, schema: { $ref: '#/components/schemas/Rol' } }
+        - { name: estado, in: query, schema: { $ref: '#/components/schemas/EstadoCuenta' } }
+      responses:
+        '200':
+          description: Página de cuentas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaUsuarios' }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+  /usuarios/me:
+    get:
+      tags: [Identidad]
+      operationId: obtenerUsuarioActual
+      summary: E-03 Datos del usuario autenticado
+      responses:
+        '200':
+          description: Usuario del token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /usuarios/{usuarioId}:
+    parameters:
+      - $ref: '#/components/parameters/usuarioId'
+    patch:
+      tags: [Identidad]
+      operationId: cambiarEstadoUsuario
+      summary: E-05 Suspender o reactivar una cuenta (solo administrador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UsuarioCambioEstado' }
+            example: { estado: suspendida }
+      responses:
+        '200':
+          description: Cuenta actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+  /sesiones:
+    post:
+      tags: [Identidad]
+      operationId: iniciarSesion
+      summary: E-02 Iniciar sesión
+      description: Limitado a 5 intentos por minuto por dirección IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credenciales' }
+            example: { correo: desvelados@correo.com, contrasena: Escenario2026 }
+      responses:
+        '201':
+          description: Sesión creada; devuelve el token de acceso.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sesion' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '429': { $ref: '#/components/responses/LimiteExcedido' }
+
+  # ---------------------------------------------------------------- Perfiles
+  /catalogos/generos:
+    get:
+      tags: [Perfiles]
+      operationId: listarGeneros
+      summary: E-06 Catálogo de géneros
+      responses:
+        '200':
+          description: Lista completa del catálogo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [datos]
+                properties:
+                  datos: { type: array, items: { $ref: '#/components/schemas/Genero' } }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /catalogos/tipos-equipo:
+    get:
+      tags: [Perfiles]
+      operationId: listarTiposEquipo
+      summary: E-07 Catálogo de tipos de equipo
+      responses:
+        '200':
+          description: Lista completa del catálogo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [datos]
+                properties:
+                  datos: { type: array, items: { $ref: '#/components/schemas/TipoEquipo' } }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /bandas:
+    post:
+      tags: [Perfiles]
+      operationId: crearBanda
+      summary: E-08 Crear el perfil de la propia banda
+      description: |
+        El id del perfil es el `sub` del token.
+        **Temporal (Entrega 5):** sin autenticación todavía, el id viaja en el campo `id` del cuerpo.
+        En la Entrega 6 el campo se elimina y el id sale del token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BandaNueva' }
+      responses:
+        '201':
+          description: Perfil creado.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Banda' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+    get:
+      tags: [Perfiles]
+      operationId: listarBandas
+      summary: E-34 Listar bandas activas
+      description: Agregado en la Entrega 5. Solo bandas visibles y sin baja, ordenadas por nombre.
+      parameters:
+        - $ref: '#/components/parameters/pagina'
+        - $ref: '#/components/parameters/porPagina'
+        - $ref: '#/components/parameters/genero'
+      responses:
+        '200':
+          description: Página de bandas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaBandas' }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /bandas/{bandaId}:
+    parameters:
+      - $ref: '#/components/parameters/bandaId'
+    get:
+      tags: [Perfiles]
+      operationId: obtenerBanda
+      summary: E-09 Consultar un perfil de banda
+      responses:
+        '200':
+          description: Perfil de la banda.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Banda' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    patch:
+      tags: [Perfiles]
+      operationId: modificarBanda
+      summary: E-10 Modificar campos del perfil (solo la banda dueña)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BandaCambios' }
+            example: { integrantes: 4, descripcion: Ahora somos cuarteto. }
+      responses:
+        '200':
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Banda' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+    delete:
+      tags: [Perfiles]
+      operationId: darDeBajaBanda
+      summary: E-35 Dar de baja el perfil (solo la banda dueña)
+      description: |
+        Agregado en la Entrega 5. **Baja lógica:** se registra `dado_de_baja_en` y el perfil deja de
+        aparecer en consultas y listados (responde 404), pero la fila se conserva porque las solicitudes del historial
+        la referencian. El id no se libera: un nuevo `POST` con el mismo id responde 409.
+      responses:
+        '204': { description: Perfil dado de baja. }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /bandas/{bandaId}/rider:
+    parameters:
+      - $ref: '#/components/parameters/bandaId'
+    get:
+      tags: [Perfiles]
+      operationId: obtenerRider
+      summary: E-11 Consultar el rider
+      responses:
+        '200':
+          description: Rider de la banda.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Rider' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    put:
+      tags: [Perfiles]
+      operationId: reemplazarRider
+      summary: E-12 Reemplazar el rider completo (solo la banda dueña)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RiderEntrada' }
+            example:
+              requisitos:
+                - { tipoEquipoId: 1, cantidad: 1 }
+                - { tipoEquipoId: 5, cantidad: 4, notas: 'Guitarra y bajo con simulador, en estéreo' }
+      responses:
+        '200':
+          description: Rider guardado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Rider' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+  /foros:
+    post:
+      tags: [Perfiles]
+      operationId: crearForo
+      summary: E-13 Crear el perfil del propio foro
+      description: |
+        El id del perfil es el `sub` del token.
+        **Temporal (Entrega 5):** sin autenticación todavía, el id viaja en el campo `id` del cuerpo.
+        En la Entrega 6 el campo se elimina y el id sale del token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ForoNuevo' }
+      responses:
+        '201':
+          description: Perfil creado.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Foro' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+    get:
+      tags: [Perfiles]
+      operationId: listarForos
+      summary: E-14 Listar foros visibles
+      parameters:
+        - $ref: '#/components/parameters/pagina'
+        - $ref: '#/components/parameters/porPagina'
+        - $ref: '#/components/parameters/genero'
+        - name: ids
+          in: query
+          description: Ids separados por comas (máximo 50). Lo usa el Gateway para componer la disponibilidad.
+          style: form
+          explode: false
+          schema: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Página de foros.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaForos' }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /foros/{foroId}:
+    parameters:
+      - $ref: '#/components/parameters/foroId'
+    get:
+      tags: [Perfiles]
+      operationId: obtenerForo
+      summary: E-15 Consultar un perfil de foro
+      responses:
+        '200':
+          description: Perfil del foro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Foro' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    patch:
+      tags: [Perfiles]
+      operationId: modificarForo
+      summary: E-16 Modificar campos del perfil (solo el foro dueño)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ForoCambios' }
+      responses:
+        '200':
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Foro' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+    delete:
+      tags: [Perfiles]
+      operationId: darDeBajaForo
+      summary: E-36 Dar de baja el perfil (solo el foro dueño)
+      description: |
+        Agregado en la Entrega 5. **Baja lógica:** se registra `dado_de_baja_en` y el perfil deja de
+        aparecer en consultas y listados (responde 404), pero la fila se conserva porque las franjas y solicitudes del historial
+        la referencian. El id no se libera: un nuevo `POST` con el mismo id responde 409.
+      responses:
+        '204': { description: Perfil dado de baja. }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /foros/{foroId}/inventario:
+    parameters:
+      - $ref: '#/components/parameters/foroId'
+    get:
+      tags: [Perfiles]
+      operationId: obtenerInventario
+      summary: E-17 Consultar el inventario
+      responses:
+        '200':
+          description: Inventario del foro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Inventario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    put:
+      tags: [Perfiles]
+      operationId: reemplazarInventario
+      summary: E-18 Reemplazar el inventario completo (solo el foro dueño)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InventarioEntrada' }
+      responses:
+        '200':
+          description: Inventario guardado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Inventario' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+
+  # ---------------------------------------------------------------- Booking
+  /franjas:
+    post:
+      tags: [Booking]
+      operationId: publicarFranja
+      summary: E-19 Publicar una franja propia (solo foro)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FranjaNueva' }
+            example: { inicio: '2026-11-14T20:00:00-06:00', fin: '2026-11-14T23:00:00-06:00' }
+      responses:
+        '201':
+          description: Franja publicada como libre.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Franja' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+    get:
+      tags: [Booking]
+      operationId: listarFranjas
+      summary: E-20 Listar franjas
+      parameters:
+        - $ref: '#/components/parameters/pagina'
+        - $ref: '#/components/parameters/porPagina'
+        - { name: foroId, in: query, schema: { type: string, format: uuid } }
+        - { name: desde, in: query, description: 'Por defecto, hoy.', schema: { type: string, format: date } }
+        - { name: hasta, in: query, description: 'Por defecto, 30 días después de desde; rango máximo de 92 días.', schema: { type: string, format: date } }
+        - { name: estado, in: query, schema: { $ref: '#/components/schemas/EstadoFranja' } }
+      responses:
+        '200':
+          description: Página de franjas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaFranjas' }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /franjas/{franjaId}:
+    parameters:
+      - $ref: '#/components/parameters/franjaId'
+    get:
+      tags: [Booking]
+      operationId: obtenerFranja
+      summary: E-21 Consultar una franja
+      responses:
+        '200':
+          description: Franja.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Franja' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    delete:
+      tags: [Booking]
+      operationId: eliminarFranja
+      summary: E-22 Retirar una franja sin solicitudes activas (solo el foro dueño)
+      description: |
+        Borrado lógico: la franja pasa a estado retirada y conserva su historial. Después de retirarla,
+        GET /franjas/{franjaId} responde 404 y su horario se puede volver a publicar.
+      responses:
+        '204':
+          description: Franja retirada.
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /franjas/{franjaId}/compatibilidad:
+    parameters:
+      - $ref: '#/components/parameters/franjaId'
+    get:
+      tags: [Booking]
+      operationId: calcularCompatibilidad
+      summary: E-23 Calcular el equipo que le faltaría a una banda en esa franja
+      parameters:
+        - name: bandaId
+          in: query
+          required: true
+          description: Debe coincidir con el `sub` del token.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Resultado de comparar el rider con el inventario del foro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Compatibilidad' }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '503': { $ref: '#/components/responses/ServicioNoDisponible' }
+  /solicitudes:
+    post:
+      tags: [Booking]
+      operationId: crearSolicitud
+      summary: E-24 Enviar una solicitud (solo banda)
+      description: El `bandaId` se toma del token. El servicio recalcula los faltantes con Perfiles.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudNueva' }
+            example:
+              franjaId: aaaaaaaa-0000-0000-0000-000000000001
+              tipoAcuerdo: pago_fijo
+              montoMxn: 1500.00
+              notas: Llevamos nuestras dos cajas DI.
+      responses:
+        '201':
+          description: Solicitud creada en estado solicitada.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Solicitud' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+        '503': { $ref: '#/components/responses/ServicioNoDisponible' }
+    get:
+      tags: [Booking]
+      operationId: listarSolicitudes
+      summary: E-25 Listar solicitudes (propias; todas para administrador)
+      parameters:
+        - $ref: '#/components/parameters/pagina'
+        - $ref: '#/components/parameters/porPagina'
+        - { name: estado, in: query, schema: { $ref: '#/components/schemas/EstadoSolicitud' } }
+        - { name: franjaId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Página de solicitudes, de la más reciente a la más antigua.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaSolicitudes' }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /solicitudes/{solicitudId}:
+    parameters:
+      - $ref: '#/components/parameters/solicitudId'
+    get:
+      tags: [Booking]
+      operationId: obtenerSolicitud
+      summary: E-26 Consultar una solicitud
+      responses:
+        '200':
+          description: Detalle de la solicitud.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Solicitud' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /solicitudes/{solicitudId}/cambios-estado:
+    parameters:
+      - $ref: '#/components/parameters/solicitudId'
+    get:
+      tags: [Booking]
+      operationId: listarCambiosEstado
+      summary: E-27 Consultar el historial de la solicitud
+      responses:
+        '200':
+          description: Cambios en orden cronológico.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [datos]
+                properties:
+                  datos: { type: array, items: { $ref: '#/components/schemas/CambioEstado' } }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    post:
+      tags: [Booking]
+      operationId: crearCambioEstado
+      summary: E-28 Aceptar, rechazar, confirmar o cancelar una solicitud
+      description: |
+        Transiciones permitidas:
+        foro: solicitada → aceptada | rechazada; aceptada → cancelada; confirmada → cancelada.
+        banda: solicitada → cancelada; aceptada → confirmada | cancelada; confirmada → cancelada.
+        Al aceptar, la franja pasa a reservada y las demás solicitudes pendientes de la franja se rechazan
+        en la misma transacción.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CambioEstadoNuevo' }
+            examples:
+              aceptar: { value: { estadoNuevo: aceptada } }
+              cancelar: { value: { estadoNuevo: cancelada, motivo: Se canceló el evento por mantenimiento del foro. } }
+      responses:
+        '201':
+          description: Cambio aplicado y registrado en el historial.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CambioEstado' }
+        '400': { $ref: '#/components/responses/SolicitudMalFormada' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+  /solicitudes/{solicitudId}/cambios-estado/{cambioId}:
+    parameters:
+      - $ref: '#/components/parameters/solicitudId'
+      - $ref: '#/components/parameters/cambioId'
+    get:
+      tags: [Booking]
+      operationId: obtenerCambioEstado
+      summary: E-29 Consultar un cambio de estado
+      responses:
+        '200':
+          description: Cambio de estado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CambioEstado' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  # ---------------------------------------------------------------- Gateway
+  /disponibilidad:
+    get:
+      tags: [Disponibilidad]
+      operationId: buscarDisponibilidad
+      summary: E-30 Foros con franjas libres en una fecha (solo banda)
+      parameters:
+        - name: fecha
+          in: query
+          required: true
+          description: Hoy o una fecha posterior.
+          schema: { type: string, format: date }
+          example: '2026-11-14'
+        - $ref: '#/components/parameters/genero'
+        - $ref: '#/components/parameters/pagina'
+        - $ref: '#/components/parameters/porPagina'
+      responses:
+        '200':
+          description: Foros visibles con al menos una franja libre ese día.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaDisponibilidad' }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '503': { $ref: '#/components/responses/ServicioNoDisponible' }
+
+  # ---------------------------------------------------------------- Notificaciones
+  /notificaciones:
+    get:
+      tags: [Notificaciones]
+      operationId: listarNotificaciones
+      summary: E-31 Listar las notificaciones propias
+      parameters:
+        - $ref: '#/components/parameters/pagina'
+        - $ref: '#/components/parameters/porPagina'
+        - { name: leida, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Página de notificaciones y total de no leídas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaNotificaciones' }
+        '400': { $ref: '#/components/responses/ParametroInvalido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    patch:
+      tags: [Notificaciones]
+      operationId: marcarTodasLeidas
+      summary: E-33 Marcar como leídas todas las notificaciones propias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificacionCambio' }
+            example: { leida: true }
+      responses:
+        '204':
+          description: Todas marcadas como leídas.
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+  /notificaciones/{notificacionId}:
+    parameters:
+      - $ref: '#/components/parameters/notificacionId'
+    patch:
+      tags: [Notificaciones]
+      operationId: marcarLeida
+      summary: E-32 Marcar una notificación como leída
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificacionCambio' }
+            example: { leida: true }
+      responses:
+        '200':
+          description: Notificación actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Notificacion' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/SinPermiso' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '422': { $ref: '#/components/responses/ValidacionFallida' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token RS256 emitido por Identidad en POST /sesiones; expira a los 60 minutos.
+
+  headers:
+    Location:
+      description: URL del recurso creado.
+      schema: { type: string, format: uri-reference }
+
+  parameters:
+    pagina:
+      name: pagina
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    porPagina:
+      name: porPagina
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    genero:
+      name: genero
+      in: query
+      description: Id del catálogo de géneros.
+      schema: { type: integer, minimum: 1 }
+    usuarioId:
+      name: usuarioId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    bandaId:
+      name: bandaId
+      in: path
+      required: true
+      description: Id de la banda; es el mismo id de su usuario.
+      schema: { type: string, format: uuid }
+    foroId:
+      name: foroId
+      in: path
+      required: true
+      description: Id del foro; es el mismo id de su usuario.
+      schema: { type: string, format: uuid }
+    franjaId:
+      name: franjaId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    solicitudId:
+      name: solicitudId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    cambioId:
+      name: cambioId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    notificacionId:
+      name: notificacionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    SolicitudMalFormada:
+      description: El cuerpo no es JSON válido o un campo tiene el tipo equivocado.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.backline.mx/errores/solicitud-mal-formada
+            title: La petición está mal formada
+            status: 400
+            detail: El cuerpo no es un JSON válido.
+            instance: /api/v1/franjas
+            codigo: SOLICITUD_MAL_FORMADA
+            correlationId: 1a2b3c4d-0000-4000-8000-000000000010
+    ParametroInvalido:
+      description: Un parámetro de ruta o de consulta falta o tiene formato inválido.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.backline.mx/errores/parametro-invalido
+            title: Parámetro inválido
+            status: 400
+            detail: El parámetro fecha debe tener el formato AAAA-MM-DD.
+            instance: /api/v1/disponibilidad
+            codigo: PARAMETRO_INVALIDO
+            correlationId: 1a2b3c4d-0000-4000-8000-000000000007
+            errores:
+              - { campo: fecha, codigo: FORMATO, mensaje: 'Usa el formato AAAA-MM-DD, por ejemplo 2026-11-14.' }
+    NoAutenticado:
+      description: Token ausente, inválido o expirado; o credenciales incorrectas.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.backline.mx/errores/token-expirado
+            title: La sesión expiró
+            status: 401
+            detail: Inicia sesión de nuevo para continuar.
+            instance: /api/v1/solicitudes
+            codigo: TOKEN_EXPIRADO
+            correlationId: 1a2b3c4d-0000-4000-8000-000000000005
+    SinPermiso:
+      description: El rol o la propiedad no permiten la operación, o la cuenta está suspendida.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.backline.mx/errores/permiso-insuficiente
+            title: No tienes permiso para esta operación
+            status: 403
+            detail: Solo la banda puede confirmar una solicitud aceptada.
+            instance: /api/v1/solicitudes/bbbbbbbb-0000-0000-0000-000000000001/cambios-estado
+            codigo: PERMISO_INSUFICIENTE
+            correlationId: 1a2b3c4d-0000-4000-8000-000000000003
+    NoEncontrado:
+      description: El recurso indicado en la ruta no existe.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.backline.mx/errores/recurso-no-encontrado
+            title: Recurso no encontrado
+            status: 404
+            detail: No existe una franja con ese id.
+            instance: /api/v1/franjas/aaaaaaaa-0000-0000-0000-00000000ffff
+            codigo: RECURSO_NO_ENCONTRADO
+            correlationId: 1a2b3c4d-0000-4000-8000-000000000011
+    Conflicto:
+      description: La petición es válida pero contradice el estado actual de los datos.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          examples:
+            franjaNoDisponible:
+              value:
+                type: https://api.backline.mx/errores/franja-no-disponible
+                title: La franja no está disponible
+                status: 409
+                detail: La franja del 14 de noviembre de 2026 a las 20:00 ya fue reservada por otra banda.
+                instance: /api/v1/solicitudes
+                codigo: FRANJA_NO_DISPONIBLE
+                correlationId: 1a2b3c4d-0000-4000-8000-000000000001
+            transicionNoPermitida:
+              value:
+                type: https://api.backline.mx/errores/transicion-no-permitida
+                title: Cambio de estado no permitido
+                status: 409
+                detail: Una solicitud en estado rechazada no puede pasar a confirmada.
+                instance: /api/v1/solicitudes/bbbbbbbb-0000-0000-0000-000000000002/cambios-estado
+                codigo: TRANSICION_NO_PERMITIDA
+                correlationId: 1a2b3c4d-0000-4000-8000-000000000002
+    ValidacionFallida:
+      description: Uno o más campos no cumplen una regla; el detalle va en `errores`.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.backline.mx/errores/validacion-fallida
+            title: Los datos enviados no son válidos
+            status: 422
+            detail: Revisa los campos marcados.
+            instance: /api/v1/solicitudes
+            codigo: VALIDACION_FALLIDA
+            correlationId: 7f3c9a2e-5b1d-4e8a-9c21-0d4e5f6a8b90
+            errores:
+              - { campo: montoMxn, codigo: REQUERIDO, mensaje: El monto es obligatorio para un pago fijo. }
+    LimiteExcedido:
+      description: Demasiadas peticiones; reintentar después de `Retry-After` segundos.
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+    ServicioNoDisponible:
+      description: Un servicio necesario no responde; reintentar después de `Retry-After` segundos.
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.backline.mx/errores/servicio-no-disponible
+            title: Servicio no disponible
+            status: 503
+            detail: No fue posible consultar el rider y el inventario. Intenta de nuevo en unos segundos.
+            instance: /api/v1/franjas/aaaaaaaa-0000-0000-0000-000000000001/compatibilidad
+            codigo: SERVICIO_NO_DISPONIBLE
+            correlationId: 1a2b3c4d-0000-4000-8000-000000000006
+
+  schemas:
+    # ------------------------------------------------------------ comunes
+    Problema:
+      type: object
+      description: Formato de error RFC 9457 con extensiones de Backline.
+      required: [type, title, status, detail, instance, codigo, correlationId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string }
+        codigo:
+          type: string
+          enum: [SOLICITUD_MAL_FORMADA, PARAMETRO_INVALIDO, CREDENCIALES_INVALIDAS, TOKEN_INVALIDO,
+                 TOKEN_EXPIRADO, CUENTA_SUSPENDIDA, PERMISO_INSUFICIENTE, AUTOSUSPENSION_NO_PERMITIDA,
+                 RECURSO_NO_ENCONTRADO, CORREO_YA_REGISTRADO, PERFIL_YA_EXISTE, FRANJA_TRASLAPADA,
+                 FRANJA_NO_DISPONIBLE, FRANJA_CON_SOLICITUDES, SOLICITUD_DUPLICADA, TRANSICION_NO_PERMITIDA,
+                 VALIDACION_FALLIDA, LIMITE_EXCEDIDO, ERROR_INTERNO, SERVICIO_NO_DISPONIBLE]
+        correlationId: { type: string, format: uuid }
+        errores:
+          type: array
+          description: Solo en 400 y 422.
+          items: { $ref: '#/components/schemas/ErrorCampo' }
+    ErrorCampo:
+      type: object
+      required: [campo, codigo, mensaje]
+      properties:
+        campo: { type: string }
+        codigo: { type: string, examples: [REQUERIDO, FORMATO, FUERA_DE_RANGO, DEMASIADO_LARGO] }
+        mensaje: { type: string }
+    Paginacion:
+      type: object
+      required: [pagina, porPagina, total]
+      properties:
+        pagina: { type: integer, minimum: 1 }
+        porPagina: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+    Id:
+      type: string
+      format: uuid
+    Instante:
+      type: string
+      format: date-time
+      description: ISO 8601 con zona horaria.
+
+    # ------------------------------------------------------------ Identidad
+    Rol:
+      type: string
+      enum: [banda, foro, admin]
+    EstadoCuenta:
+      type: string
+      enum: [activa, suspendida]
+    UsuarioNuevo:
+      type: object
+      additionalProperties: false
+      required: [correo, contrasena, rol]
+      properties:
+        correo: { type: string, format: email, maxLength: 254 }
+        contrasena: { type: string, minLength: 8, maxLength: 72, writeOnly: true }
+        rol: { type: string, enum: [banda, foro], description: Las cuentas de administrador no se registran por la API. }
+    Usuario:
+      type: object
+      required: [id, correo, rol, estado, creadoEn]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        correo: { type: string, format: email }
+        rol: { $ref: '#/components/schemas/Rol' }
+        estado: { $ref: '#/components/schemas/EstadoCuenta' }
+        creadoEn: { $ref: '#/components/schemas/Instante' }
+    UsuarioCambioEstado:
+      type: object
+      additionalProperties: false
+      required: [estado]
+      properties:
+        estado: { $ref: '#/components/schemas/EstadoCuenta' }
+    ListaUsuarios:
+      type: object
+      required: [datos, paginacion]
+      properties:
+        datos: { type: array, items: { $ref: '#/components/schemas/Usuario' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+    Credenciales:
+      type: object
+      additionalProperties: false
+      required: [correo, contrasena]
+      properties:
+        correo: { type: string, format: email }
+        contrasena: { type: string, writeOnly: true }
+    Sesion:
+      type: object
+      required: [tokenAcceso, tipo, expiraEn, usuario]
+      properties:
+        tokenAcceso: { type: string }
+        tipo: { type: string, const: Bearer }
+        expiraEn: { type: integer, description: Segundos de vigencia., examples: [3600] }
+        usuario:
+          type: object
+          required: [id, rol]
+          properties:
+            id: { $ref: '#/components/schemas/Id' }
+            rol: { $ref: '#/components/schemas/Rol' }
+
+    # ------------------------------------------------------------ Perfiles
+    Genero:
+      type: object
+      required: [id, nombre]
+      properties:
+        id: { type: integer }
+        nombre: { type: string, examples: [Metal] }
+    TipoEquipo:
+      type: object
+      required: [id, nombre, categoria]
+      properties:
+        id: { type: integer }
+        nombre: { type: string, examples: [Entrada de línea (caja DI)] }
+        categoria: { type: string, enum: [sonido, microfonia, instrumentos, energia] }
+    BandaNueva:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, integrantes, generoIds]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+          deprecated: true
+          description: Temporal (Entrega 5). Id de la cuenta dueña; se elimina en la Entrega 6.
+        nombre: { type: string, minLength: 2, maxLength: 80 }
+        integrantes: { type: integer, minimum: 1, maximum: 20 }
+        generoIds: { type: array, minItems: 1, maxItems: 3, uniqueItems: true, items: { type: integer } }
+        enlaceDemo: { type: [string, 'null'], format: uri, maxLength: 300 }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+    BandaCambios:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 80 }
+        integrantes: { type: integer, minimum: 1, maximum: 20 }
+        generoIds: { type: array, minItems: 1, maxItems: 3, uniqueItems: true, items: { type: integer } }
+        enlaceDemo: { type: [string, 'null'], format: uri, maxLength: 300 }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+    Banda:
+      type: object
+      required: [id, nombre, integrantes, generos, visible, creadoEn, actualizadoEn]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        nombre: { type: string }
+        integrantes: { type: integer }
+        generos: { type: array, items: { $ref: '#/components/schemas/Genero' } }
+        enlaceDemo: { type: [string, 'null'], format: uri }
+        descripcion: { type: [string, 'null'] }
+        visible: { type: boolean }
+        creadoEn: { $ref: '#/components/schemas/Instante' }
+        actualizadoEn: { $ref: '#/components/schemas/Instante' }
+    ElementoEquipoEntrada:
+      type: object
+      additionalProperties: false
+      required: [tipoEquipoId, cantidad]
+      properties:
+        tipoEquipoId: { type: integer }
+        cantidad: { type: integer, minimum: 1 }
+        notas: { type: [string, 'null'], maxLength: 120 }
+    ElementoEquipo:
+      type: object
+      required: [tipoEquipoId, tipoEquipo, cantidad]
+      properties:
+        tipoEquipoId: { type: integer }
+        tipoEquipo: { type: string }
+        cantidad: { type: integer }
+        notas: { type: [string, 'null'] }
+    RiderEntrada:
+      type: object
+      additionalProperties: false
+      required: [requisitos]
+      description: Lista completa; un tipo de equipo no se repite. Cantidad de 1 a 10.
+      properties:
+        requisitos:
+          type: array
+          maxItems: 30
+          items:
+            allOf:
+              - $ref: '#/components/schemas/ElementoEquipoEntrada'
+              - properties: { cantidad: { maximum: 10 } }
+    Rider:
+      type: object
+      required: [bandaId, requisitos, actualizadoEn]
+      properties:
+        bandaId: { $ref: '#/components/schemas/Id' }
+        requisitos: { type: array, items: { $ref: '#/components/schemas/ElementoEquipo' } }
+        actualizadoEn: { $ref: '#/components/schemas/Instante' }
+    ForoNuevo:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, direccion, capacidad, generoIds]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+          deprecated: true
+          description: Temporal (Entrega 5). Id de la cuenta dueña; se elimina en la Entrega 6.
+        nombre: { type: string, minLength: 2, maxLength: 80 }
+        direccion: { type: string, minLength: 1, maxLength: 200 }
+        capacidad: { type: integer, minimum: 10, maximum: 5000 }
+        generoIds: { type: array, minItems: 1, maxItems: 12, uniqueItems: true, items: { type: integer } }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+    ForoCambios:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 80 }
+        direccion: { type: string, minLength: 1, maxLength: 200 }
+        capacidad: { type: integer, minimum: 10, maximum: 5000 }
+        generoIds: { type: array, minItems: 1, maxItems: 12, uniqueItems: true, items: { type: integer } }
+        descripcion: { type: [string, 'null'], maxLength: 500 }
+    Foro:
+      type: object
+      required: [id, nombre, direccion, capacidad, generos, visible, creadoEn, actualizadoEn]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        nombre: { type: string }
+        direccion: { type: string }
+        capacidad: { type: integer }
+        generos: { type: array, items: { $ref: '#/components/schemas/Genero' } }
+        descripcion: { type: [string, 'null'] }
+        visible: { type: boolean }
+        creadoEn: { $ref: '#/components/schemas/Instante' }
+        actualizadoEn: { $ref: '#/components/schemas/Instante' }
+    ForoResumen:
+      type: object
+      required: [id, nombre, capacidad, generos]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        nombre: { type: string }
+        capacidad: { type: integer }
+        generos: { type: array, items: { type: string } }
+    ListaBandas:
+      type: object
+      required: [datos, paginacion]
+      properties:
+        datos: { type: array, items: { $ref: '#/components/schemas/Banda' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+    ListaForos:
+      type: object
+      required: [datos, paginacion]
+      properties:
+        datos: { type: array, items: { $ref: '#/components/schemas/Foro' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+    InventarioEntrada:
+      type: object
+      additionalProperties: false
+      required: [elementos]
+      description: Lista completa; un tipo de equipo no se repite. Cantidad de 1 a 50.
+      properties:
+        elementos:
+          type: array
+          maxItems: 30
+          items:
+            allOf:
+              - $ref: '#/components/schemas/ElementoEquipoEntrada'
+              - properties: { cantidad: { maximum: 50 } }
+    Inventario:
+      type: object
+      required: [foroId, elementos, actualizadoEn]
+      properties:
+        foroId: { $ref: '#/components/schemas/Id' }
+        elementos: { type: array, items: { $ref: '#/components/schemas/ElementoEquipo' } }
+        actualizadoEn: { $ref: '#/components/schemas/Instante' }
+
+    # ------------------------------------------------------------ Booking
+    EstadoFranja:
+      type: string
+      enum: [libre, reservada]
+    EstadoSolicitud:
+      type: string
+      enum: [solicitada, aceptada, rechazada, confirmada, cancelada]
+    FranjaNueva:
+      type: object
+      additionalProperties: false
+      required: [inicio, fin]
+      description: El fin es posterior al inicio, la duración es de 12 horas como máximo y el inicio no es pasado.
+      properties:
+        inicio: { $ref: '#/components/schemas/Instante' }
+        fin: { $ref: '#/components/schemas/Instante' }
+    Franja:
+      type: object
+      required: [id, foroId, inicio, fin, estado, creadoEn]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        foroId: { $ref: '#/components/schemas/Id' }
+        inicio: { $ref: '#/components/schemas/Instante' }
+        fin: { $ref: '#/components/schemas/Instante' }
+        estado: { $ref: '#/components/schemas/EstadoFranja' }
+        creadoEn: { $ref: '#/components/schemas/Instante' }
+    ListaFranjas:
+      type: object
+      required: [datos, paginacion]
+      properties:
+        datos: { type: array, items: { $ref: '#/components/schemas/Franja' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+    Faltante:
+      type: object
+      required: [tipoEquipoId, tipoEquipo, requerido, disponible, faltan]
+      properties:
+        tipoEquipoId: { type: integer }
+        tipoEquipo: { type: string }
+        requerido: { type: integer, minimum: 1 }
+        disponible: { type: integer, minimum: 0 }
+        faltan: { type: integer, minimum: 1 }
+    Compatibilidad:
+      type: object
+      required: [franjaId, bandaId, compatible, faltantes]
+      properties:
+        franjaId: { $ref: '#/components/schemas/Id' }
+        bandaId: { $ref: '#/components/schemas/Id' }
+        compatible: { type: boolean, description: Verdadero si no hay faltantes. }
+        faltantes: { type: array, items: { $ref: '#/components/schemas/Faltante' } }
+    SolicitudNueva:
+      type: object
+      additionalProperties: false
+      required: [franjaId, tipoAcuerdo]
+      properties:
+        franjaId: { $ref: '#/components/schemas/Id' }
+        tipoAcuerdo: { type: string, enum: [pago_fijo, porcentaje_taquilla, a_convenir] }
+        montoMxn: { type: number, exclusiveMinimum: 0, multipleOf: 0.01 }
+        porcentaje: { type: integer, minimum: 1, maximum: 100 }
+        notas: { type: string, maxLength: 500 }
+      allOf:
+        - if: { properties: { tipoAcuerdo: { const: pago_fijo } } }
+          then: { required: [montoMxn], not: { required: [porcentaje] } }
+        - if: { properties: { tipoAcuerdo: { const: porcentaje_taquilla } } }
+          then: { required: [porcentaje], not: { required: [montoMxn] } }
+        - if: { properties: { tipoAcuerdo: { const: a_convenir } } }
+          then:
+            allOf:
+              - not: { required: [montoMxn] }
+              - not: { required: [porcentaje] }
+    Parte:
+      type: object
+      required: [id, nombre]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        nombre: { type: string }
+    EquipoGuardado:
+      type: object
+      required: [tipoEquipo, cantidad]
+      properties:
+        tipoEquipo: { type: string }
+        cantidad: { type: integer }
+    Solicitud:
+      type: object
+      required: [id, franjaId, banda, foro, inicio, fin, tipoAcuerdo, estado, faltantes,
+                 riderAlSolicitar, inventarioAlSolicitar, creadoEn, actualizadoEn]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        franjaId: { $ref: '#/components/schemas/Id' }
+        banda: { $ref: '#/components/schemas/Parte' }
+        foro: { $ref: '#/components/schemas/Parte' }
+        inicio: { $ref: '#/components/schemas/Instante' }
+        fin: { $ref: '#/components/schemas/Instante' }
+        tipoAcuerdo: { type: string, enum: [pago_fijo, porcentaje_taquilla, a_convenir] }
+        montoMxn: { type: [number, 'null'] }
+        porcentaje: { type: [integer, 'null'] }
+        notas: { type: [string, 'null'] }
+        estado: { $ref: '#/components/schemas/EstadoSolicitud' }
+        faltantes: { type: array, items: { $ref: '#/components/schemas/Faltante' } }
+        riderAlSolicitar: { type: array, items: { $ref: '#/components/schemas/EquipoGuardado' } }
+        inventarioAlSolicitar: { type: array, items: { $ref: '#/components/schemas/EquipoGuardado' } }
+        creadoEn: { $ref: '#/components/schemas/Instante' }
+        actualizadoEn: { $ref: '#/components/schemas/Instante' }
+    SolicitudResumen:
+      type: object
+      required: [id, banda, foro, inicio, fin, estado, totalFaltantes]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        banda: { $ref: '#/components/schemas/Parte' }
+        foro: { $ref: '#/components/schemas/Parte' }
+        inicio: { $ref: '#/components/schemas/Instante' }
+        fin: { $ref: '#/components/schemas/Instante' }
+        estado: { $ref: '#/components/schemas/EstadoSolicitud' }
+        totalFaltantes: { type: integer, minimum: 0, description: Suma de unidades faltantes. }
+    ListaSolicitudes:
+      type: object
+      required: [datos, paginacion]
+      properties:
+        datos: { type: array, items: { $ref: '#/components/schemas/SolicitudResumen' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+    CambioEstadoNuevo:
+      type: object
+      additionalProperties: false
+      required: [estadoNuevo]
+      properties:
+        estadoNuevo: { type: string, enum: [aceptada, rechazada, confirmada, cancelada] }
+        motivo: { type: string, minLength: 1, maxLength: 300 }
+      if: { properties: { estadoNuevo: { const: cancelada } } }
+      then: { required: [motivo] }
+    CambioEstado:
+      type: object
+      required: [id, solicitudId, estadoNuevo, creadoEn]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        solicitudId: { $ref: '#/components/schemas/Id' }
+        estadoAnterior:
+          oneOf:
+            - { $ref: '#/components/schemas/EstadoSolicitud' }
+            - { type: 'null' }
+        estadoNuevo: { $ref: '#/components/schemas/EstadoSolicitud' }
+        autorUsuarioId:
+          description: Nulo cuando el cambio lo hizo el sistema.
+          oneOf:
+            - { $ref: '#/components/schemas/Id' }
+            - { type: 'null' }
+        motivo: { type: [string, 'null'] }
+        creadoEn: { $ref: '#/components/schemas/Instante' }
+        efectos:
+          type: object
+          description: Solo en la respuesta de E-28.
+          properties:
+            franjaEstado: { $ref: '#/components/schemas/EstadoFranja' }
+            solicitudesRechazadas: { type: array, items: { $ref: '#/components/schemas/Id' } }
+
+    # ------------------------------------------------------------ Gateway
+    ListaDisponibilidad:
+      type: object
+      required: [datos, paginacion]
+      properties:
+        datos:
+          type: array
+          items:
+            type: object
+            required: [foro, franjasLibres]
+            properties:
+              foro: { $ref: '#/components/schemas/ForoResumen' }
+              franjasLibres:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  required: [id, inicio, fin]
+                  properties:
+                    id: { $ref: '#/components/schemas/Id' }
+                    inicio: { $ref: '#/components/schemas/Instante' }
+                    fin: { $ref: '#/components/schemas/Instante' }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+
+    # ------------------------------------------------------------ Notificaciones
+    Notificacion:
+      type: object
+      required: [id, tipo, mensaje, leida, creadoEn]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        tipo: { type: string, examples: [SolicitudAceptada] }
+        mensaje: { type: string, maxLength: 300 }
+        solicitudId:
+          oneOf:
+            - { $ref: '#/components/schemas/Id' }
+            - { type: 'null' }
+        leida: { type: boolean }
+        creadoEn: { $ref: '#/components/schemas/Instante' }
+    NotificacionCambio:
+      type: object
+      additionalProperties: false
+      required: [leida]
+      properties:
+        leida: { type: boolean, const: true, description: Solo se permite marcar como leída. }
+    ListaNotificaciones:
+      type: object
+      required: [datos, paginacion, noLeidas]
+      properties:
+        datos: { type: array, items: { $ref: '#/components/schemas/Notificacion' } }
+        paginacion: { $ref: '#/components/schemas/Paginacion' }
+        noLeidas: { type: integer, minimum: 0 }

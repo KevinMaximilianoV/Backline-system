@@ -1,0 +1,30 @@
+{
+  "name": "backline-perfiles",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servicio Perfiles de Backline: bandas, foros, catálogos, rider e inventario",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test:postman": "newman run ../../postman/Backline-Perfiles.postman_collection.json -e ../../postman/Backline-local.postman_environment.json"
+  },
+  "dependencies": {
+    "express": "5.3.0",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "newman": "6.2.3",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

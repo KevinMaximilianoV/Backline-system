@@ -1,0 +1,215 @@
+// Backline · modelo de datos generado desde las bases creadas por los scripts SQL.
+// Abrir en https://dbdiagram.io (pegar el contenido). No editar a mano: regenerar.
+
+Table backline_identidad.evento_pendiente {
+  id uuid [pk, not null]
+  tipo varchar(60) [not null]
+  payload jsonb [not null]
+  creado_en timestamptz [not null]
+  publicado_en timestamptz
+}
+
+Table backline_identidad.usuario {
+  id uuid [pk, not null]
+  correo varchar(254) [not null]
+  hash_contrasena varchar(100) [not null]
+  rol rol_usuario [not null]
+  estado estado_cuenta [not null]
+  creado_en timestamptz [not null]
+  actualizado_en timestamptz [not null]
+  Note: 'UNIQUE ux_usuario_correo'
+}
+
+TableGroup Identidad {
+  backline_identidad.evento_pendiente
+  backline_identidad.usuario
+}
+
+Table backline_perfiles.banda {
+  id uuid [pk, not null]
+  nombre varchar(80) [not null]
+  integrantes smallint [not null]
+  enlace_demo varchar(300)
+  descripcion varchar(500)
+  visible boolean [not null]
+  dado_de_baja_en timestamptz
+  creado_en timestamptz [not null]
+  actualizado_en timestamptz [not null]
+}
+
+Table backline_perfiles.banda_genero {
+  banda_id uuid [not null]
+  genero_id smallint [not null]
+  indexes {
+    (banda_id, genero_id) [pk]
+  }
+}
+
+Table backline_perfiles.foro {
+  id uuid [pk, not null]
+  nombre varchar(80) [not null]
+  direccion varchar(200) [not null]
+  capacidad integer [not null]
+  descripcion varchar(500)
+  visible boolean [not null]
+  dado_de_baja_en timestamptz
+  creado_en timestamptz [not null]
+  actualizado_en timestamptz [not null]
+}
+
+Table backline_perfiles.foro_genero {
+  foro_id uuid [not null]
+  genero_id smallint [not null]
+  indexes {
+    (foro_id, genero_id) [pk]
+  }
+}
+
+Table backline_perfiles.genero {
+  id smallint [pk, not null]
+  nombre varchar(40) [not null, unique]
+}
+
+Table backline_perfiles.inventario_item {
+  id uuid [pk, not null]
+  foro_id uuid [not null]
+  tipo_equipo_id smallint [not null]
+  cantidad smallint [not null]
+  notas varchar(120)
+  indexes {
+    (foro_id, tipo_equipo_id) [unique]
+  }
+}
+
+Table backline_perfiles.rider_requisito {
+  id uuid [pk, not null]
+  banda_id uuid [not null]
+  tipo_equipo_id smallint [not null]
+  cantidad smallint [not null]
+  notas varchar(120)
+  indexes {
+    (banda_id, tipo_equipo_id) [unique]
+  }
+}
+
+Table backline_perfiles.tipo_equipo {
+  id smallint [pk, not null]
+  nombre varchar(60) [not null, unique]
+  categoria categoria_equipo [not null]
+}
+
+TableGroup Perfiles {
+  backline_perfiles.banda
+  backline_perfiles.banda_genero
+  backline_perfiles.foro
+  backline_perfiles.foro_genero
+  backline_perfiles.genero
+  backline_perfiles.inventario_item
+  backline_perfiles.rider_requisito
+  backline_perfiles.tipo_equipo
+}
+
+Table backline_booking.cambio_estado {
+  id uuid [pk, not null]
+  solicitud_id uuid [not null]
+  estado_anterior estado_solicitud
+  estado_nuevo estado_solicitud [not null]
+  autor_usuario_id uuid
+  motivo varchar(300)
+  creado_en timestamptz [not null]
+}
+
+Table backline_booking.evento_pendiente {
+  id uuid [pk, not null]
+  tipo varchar(60) [not null]
+  payload jsonb [not null]
+  creado_en timestamptz [not null]
+  publicado_en timestamptz
+}
+
+Table backline_booking.franja {
+  id uuid [pk, not null]
+  foro_id uuid [not null]
+  inicio timestamptz [not null]
+  fin timestamptz [not null]
+  estado estado_franja [not null]
+  creado_en timestamptz [not null]
+  retirada_en timestamptz
+  indexes {
+    (id, foro_id) [unique]
+  }
+  Note: 'EXCLUDE ex_franja_sin_traslape'
+}
+
+Table backline_booking.solicitud {
+  id uuid [pk, not null]
+  franja_id uuid [not null]
+  foro_id uuid [not null]
+  banda_id uuid [not null]
+  banda_nombre varchar(80) [not null]
+  foro_nombre varchar(80) [not null]
+  tipo_acuerdo tipo_acuerdo [not null]
+  monto_mxn numeric(10,2)
+  porcentaje smallint
+  notas varchar(500)
+  estado estado_solicitud [not null]
+  rider_snapshot jsonb [not null]
+  inventario_snapshot jsonb [not null]
+  faltantes jsonb [not null]
+  creado_en timestamptz [not null]
+  actualizado_en timestamptz [not null]
+  Note: 'UNIQUE parcial ux_solicitud_banda_franja_activa; UNIQUE parcial ux_solicitud_franja_reservada'
+}
+
+TableGroup Booking {
+  backline_booking.cambio_estado
+  backline_booking.evento_pendiente
+  backline_booking.franja
+  backline_booking.solicitud
+}
+
+Table backline_notificaciones.contacto {
+  usuario_id uuid [pk, not null]
+  correo varchar(254) [not null]
+  actualizado_en timestamptz [not null]
+}
+
+Table backline_notificaciones.notificacion {
+  id uuid [pk, not null]
+  usuario_id uuid [not null]
+  evento_id uuid [not null]
+  tipo varchar(60) [not null]
+  mensaje varchar(300) [not null]
+  solicitud_id uuid
+  canal canal_notificacion [not null]
+  leida boolean [not null]
+  enviada_en timestamptz
+  creado_en timestamptz [not null]
+  indexes {
+    (evento_id, usuario_id, canal) [unique]
+  }
+}
+
+TableGroup Notificaciones {
+  backline_notificaciones.contacto
+  backline_notificaciones.notificacion
+}
+
+Ref banda_genero_banda_id_fkey: backline_perfiles.banda_genero.banda_id > backline_perfiles.banda.id
+Ref banda_genero_genero_id_fkey: backline_perfiles.banda_genero.genero_id > backline_perfiles.genero.id
+Ref foro_genero_foro_id_fkey: backline_perfiles.foro_genero.foro_id > backline_perfiles.foro.id
+Ref foro_genero_genero_id_fkey: backline_perfiles.foro_genero.genero_id > backline_perfiles.genero.id
+Ref inventario_item_foro_id_fkey: backline_perfiles.inventario_item.foro_id > backline_perfiles.foro.id
+Ref inventario_item_tipo_equipo_id_fkey: backline_perfiles.inventario_item.tipo_equipo_id > backline_perfiles.tipo_equipo.id
+Ref rider_requisito_banda_id_fkey: backline_perfiles.rider_requisito.banda_id > backline_perfiles.banda.id
+Ref rider_requisito_tipo_equipo_id_fkey: backline_perfiles.rider_requisito.tipo_equipo_id > backline_perfiles.tipo_equipo.id
+Ref cambio_estado_solicitud_id_fkey: backline_booking.cambio_estado.solicitud_id > backline_booking.solicitud.id
+Ref fk_solicitud_franja: backline_booking.solicitud.(franja_id, foro_id) > backline_booking.franja.(id, foro_id)
+Ref notificacion_usuario_id_fkey: backline_notificaciones.notificacion.usuario_id > backline_notificaciones.contacto.usuario_id
+
+// Referencias lógicas entre bases (sin FK; solo se guarda el id)
+Ref: backline_perfiles.banda.id - backline_identidad.usuario.id // lógica, 1:1, mismo id
+Ref: backline_perfiles.foro.id - backline_identidad.usuario.id // lógica, 1:1, mismo id
+Ref: backline_booking.franja.foro_id > backline_perfiles.foro.id // lógica, N:1
+Ref: backline_booking.solicitud.banda_id > backline_perfiles.banda.id // lógica, N:1
+Ref: backline_notificaciones.contacto.usuario_id - backline_identidad.usuario.id // lógica, 1:1, copia por evento

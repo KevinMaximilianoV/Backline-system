@@ -1,0 +1,174 @@
+Null display is "(nulo)".
+You are now connected to database "backline_identidad" as user "postgres".
+
+== V01 · Usuarios por rol y estado (E-04)
+  rol  |   estado   | usuarios 
+-------+------------+----------
+ banda | activa     |        5
+ banda | suspendida |        1
+ foro  | activa     |        3
+ admin | activa     |        1
+
+You are now connected to database "backline_perfiles" as user "postgres".
+
+== V02 · Perfil de Los Desvelados con géneros y rider (E-09, E-11)
+     banda      | integrantes |   generos   |                                                    rider                                                     
+----------------+-------------+-------------+--------------------------------------------------------------------------------------------------------------
+ Los Desvelados |           3 | Metal, Rock | Sistema de PA x1, Monitor de piso x2, Entrada de línea (caja DI) x4, Micrófono vocal x2, Batería completa x1
+
+
+== V03 · Foros visibles que programan Metal (E-14 con ?genero=2)
+     nombre     | capacidad 
+----------------+-----------
+ Foro La Bodega |       150
+
+
+== V04 · Compatibilidad: unidades de equipo que le faltan a cada banda en cada foro (E-23)
+     banda      |      foro      | unidades_faltantes 
+----------------+----------------+--------------------
+ Cuarto Oscuro  | Arena Norte    |                  0
+ Cuarto Oscuro  | Foro La Bodega |                  1
+ Cuarto Oscuro  | El Sótano Café |                  5
+ Los Desvelados | Arena Norte    |                  0
+ Los Desvelados | Foro La Bodega |                  2
+ Los Desvelados | El Sótano Café |                  4
+ Marea Lenta    | Arena Norte    |                  0
+ Marea Lenta    | El Sótano Café |                  3
+ Marea Lenta    | Foro La Bodega |                  3
+ Ruido Blanco   | Arena Norte    |                  0
+ Ruido Blanco   | Foro La Bodega |                  1
+ Ruido Blanco   | El Sótano Café |                  5
+ Sintonía Sur   | Arena Norte    |                  0
+ Sintonía Sur   | Foro La Bodega |                  7
+ Sintonía Sur   | El Sótano Café |                  8
+
+
+== V05 · Detalle de faltantes de Los Desvelados en Foro La Bodega (E-23)
+           equipo           | requerido | disponible | faltan 
+----------------------------+-----------+------------+--------
+ Entrada de línea (caja DI) |         4 |          2 |      2
+
+
+== V06 · Perfiles ocultos por cuenta suspendida (RF-18)
+ tipo  |  nombre   
+-------+-----------
+ banda | Eco Polar
+
+You are now connected to database "backline_booking" as user "postgres".
+
+== V07 · Disponibilidad del 22 de noviembre: franjas libres (E-30, parte de Booking)
+               foro_id                |      inicio      |  fin  
+--------------------------------------+------------------+-------
+ dddddddd-dddd-dddd-dddd-dddddddddddd | 2026-11-22 18:00 | 23:00
+
+
+== V08 · Agenda de Foro La Bodega (E-20 con ?foroId=), incluida la franja que cruza la medianoche
+      inicio      |       fin        |  estado   
+------------------+------------------+-----------
+ 2026-11-14 20:00 | 2026-11-14 23:00 | reservada
+ 2026-11-14 23:00 | 2026-11-15 02:00 | libre
+ 2026-11-21 20:00 | 2026-11-21 23:00 | reservada
+ 2026-11-28 20:00 | 2026-11-28 23:00 | libre
+
+
+== V09 · Franjas por estado, incluida la retirada (borrado lógico, RF-19)
+  estado   | franjas 
+-----------+---------
+ libre     |       7
+ reservada |       4
+ retirada  |       1
+
+
+== V10 · Solicitudes por estado (E-25)
+   estado   | solicitudes 
+------------+-------------
+ solicitada |           3
+ aceptada   |           2
+ rechazada  |           2
+ confirmada |           2
+ cancelada  |           2
+
+
+== V11 · Solicitudes de Ruido Blanco, de la más reciente a la más antigua (E-25 como banda)
+  foro_nombre   |      fecha       | tipo_acuerdo |   estado   | equipos_faltantes 
+----------------+------------------+--------------+------------+-------------------
+ Foro La Bodega | 2026-11-28 20:00 | pago_fijo    | solicitada |                 1
+ Arena Norte    | 2026-11-22 18:00 | a_convenir   | solicitada |                 0
+ Foro La Bodega | 2026-11-14 20:00 | a_convenir   | rechazada  |                 1
+
+
+== V12 · Historial de la solicitud S06: aceptada y luego cancelada por la banda (E-27)
+      cuando      | estado_anterior | estado_nuevo |                 motivo                  
+------------------+-----------------+--------------+-----------------------------------------
+ 2026-10-12 16:00 | (nulo)          | solicitada   | (nulo)
+ 2026-10-13 09:45 | solicitada      | aceptada     | (nulo)
+ 2026-10-22 08:10 | aceptada        | cancelada    | Uno de los integrantes no podrá asistir
+
+
+== V13 · Integridad: cada franja reservada tiene exactamente una solicitud aceptada o confirmada (debe salir vacío)
+ id | estado | solicitudes_vigentes 
+----+--------+----------------------
+
+
+== V14 · Integridad: el último cambio del historial coincide con el estado de la solicitud (debe salir vacío)
+ id | estado | ultimo_cambio 
+----+--------+---------------
+
+
+== V15 · Outbox: eventos aún no publicados en RabbitMQ
+      tipo       |    banda     |       creado_en        
+-----------------+--------------+------------------------
+ SolicitudCreada | Ruido Blanco | 2026-10-27 17:40:00-06
+
+You are now connected to database "backline_notificaciones" as user "postgres".
+
+== V16 · Notificaciones no leídas en la app por usuario (E-31, campo noLeidas)
+         correo          | no_leidas 
+-------------------------+-----------
+ arenanorte@correo.com   |         3
+ cuartooscuro@correo.com |         1
+ desvelados@correo.com   |         1
+ elsotano@correo.com     |         1
+ labodega@correo.com     |         1
+ ruidoblanco@correo.com  |         1
+
+
+== PRUEBAS DE RESTRICCIONES (cada una debe imprimir OK)
+You are now connected to database "backline_identidad" as user "postgres".
+psql:/verificacion/verificar.sql:133: NOTICE:  P01 OK · correo duplicado con mayúsculas rechazado (ux_usuario_correo)
+DO
+You are now connected to database "backline_perfiles" as user "postgres".
+psql:/verificacion/verificar.sql:143: NOTICE:  P02 OK · cantidad 11 en el rider rechazada (máximo 10)
+DO
+psql:/verificacion/verificar.sql:152: NOTICE:  P03 OK · tipo de equipo repetido en el rider rechazado (uq_rider_banda_equipo)
+DO
+psql:/verificacion/verificar.sql:160: NOTICE:  P04 OK · género inexistente rechazado (FK a genero)
+DO
+You are now connected to database "backline_booking" as user "postgres".
+psql:/verificacion/verificar.sql:170: NOTICE:  P05 OK · franja encimada con otra del mismo foro rechazada (ex_franja_sin_traslape)
+DO
+psql:/verificacion/verificar.sql:179: NOTICE:  P06 OK · franja de 13 horas rechazada (ck_franja_duracion)
+DO
+psql:/verificacion/verificar.sql:187: NOTICE:  P07 OK · segunda aceptación en una franja reservada rechazada (ux_solicitud_franja_reservada)
+DO
+psql:/verificacion/verificar.sql:198: NOTICE:  P08 OK · pago fijo sin monto rechazado (ck_solicitud_acuerdo)
+DO
+psql:/verificacion/verificar.sql:209: NOTICE:  P09 OK · solicitud con un foro distinto al de su franja rechazada (fk_solicitud_franja)
+DO
+psql:/verificacion/verificar.sql:218: NOTICE:  P10 OK · cancelación sin motivo rechazada (ck_cancelacion_con_motivo)
+DO
+psql:/verificacion/verificar.sql:226: NOTICE:  P11 OK · retiro de una franja con solicitudes pendientes rechazado (tg_franja_retiro)
+DO
+psql:/verificacion/verificar.sql:240: NOTICE:  P12 OK · al retirar una franja, su horario se puede volver a publicar
+DO
+SET
+psql:/verificacion/verificar.sql:250: NOTICE:  P13 OK · el servicio Booking no puede modificar el historial (solo INSERT y SELECT)
+DO
+psql:/verificacion/verificar.sql:257: NOTICE:  P14 OK · el servicio Booking no puede borrar franjas (borrado lógico obligatorio)
+DO
+RESET
+You are now connected to database "backline_notificaciones" as user "postgres".
+psql:/verificacion/verificar.sql:268: NOTICE:  P15 OK · notificación duplicada del mismo evento rechazada (uq_notificacion_evento)
+DO
+
+== Verificación terminada
