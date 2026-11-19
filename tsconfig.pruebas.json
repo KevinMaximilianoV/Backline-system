@@ -1,0 +1,19 @@
+{
+  "//": "Revisa los tipos de las pruebas. Vitest resuelve módulos como un empaquetador, de ahí \"bundler\".",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [
+      "node"
+    ],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "services/*/src/**/*.ts",
+    "pruebas/**/*.ts",
+    "vitest.config.ts"
+  ]
+}
