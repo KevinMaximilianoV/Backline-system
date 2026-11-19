@@ -97,7 +97,8 @@ describe("proxy", () => {
     expect(r.status).toBe(200);
     expect(r.headers["x-correlation-id"]).toBe(CORRELACION);
 
-    const [llegada] = recibidas;
+    expect(recibidas).toHaveLength(1);
+    const llegada = recibidas[0]!;
     expect(llegada.encabezados.authorization).toBe(banda.auth.Authorization);
     expect(llegada.encabezados["x-correlation-id"]).toBe(CORRELACION);
     expect(llegada.encabezados["x-forwarded-for"]).toBeTruthy();
@@ -157,7 +158,7 @@ describe("disponibilidad (E-30): composición de Booking y Perfiles", () => {
 
     const aBooking = recibidas.filter((p) => p.ruta.startsWith("/api/v1/franjas"));
     expect(aBooking).toHaveLength(3); // 5 franjas de 2 en 2
-    expect(aBooking[0].ruta).toContain(`desde=${fecha}&hasta=${fecha}&estado=libre`);
+    expect(aBooking[0]!.ruta).toContain(`desde=${fecha}&hasta=${fecha}&estado=libre`);
     // El token y la correlación del usuario viajan a los dos servicios
     for (const p of recibidas) {
       expect(p.encabezados.authorization).toBe(banda.auth.Authorization);
