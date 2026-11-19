@@ -17,7 +17,8 @@ Cada defecto corregido tiene una prueba que falla si vuelve a aparecer, salvo do
 | D8 | Despliegue | `tsc` compilaba los archivos `*.test.ts` dentro de `dist/` | Construcción de la imagen | `exclude: ["src/**/*.test.ts"]` en cada `tsconfig.json` | Corregido |
 | D9 | Despliegue | La imagen de Identidad fallaba con `Cannot find module 'jose'`: npm dejó `jose` 6 dentro del paquete (newman usa `jose` 4) y la imagen solo copiaba los `node_modules` de la raíz | Arranque del contenedor | El Dockerfile copia también los `node_modules` de `comun` y del servicio | Corregido (verificado al levantar el perfil `completo`) |
 | D10 | Despliegue | Si la llave privada no se podía leer por permisos, el mensaje decía "no se encontró", que manda a buscar el problema equivocado | Arranque del contenedor (uid 1000) | `leerLlave` distingue `EACCES` y explica el `chmod` para desarrollo | Corregido |
-| D11 | Rendimiento | p95 de creación de solicitudes en 593 ms con 50 usuarios (meta RNF-06: 500 ms) | Prueba de carga | `FOR SHARE` al crear, registro agrupado por vuelta del event loop, consulta ligera de rider e inventario: 593 → 523 ms | **Abierto** |
+| D11 | Rendimiento | p95 de creación de solicitudes en 593 ms con 50 usuarios (meta RNF-06: 500 ms) | Prueba de carga | `FOR SHARE` al crear, registro agrupado, consulta ligera de rider e inventario, y 2 llamadas a Perfiles en lugar de 4: 593 → 341 ms | Corregido |
+| D12 | Pruebas | La prueba de Postman *Token alterado (401)* pasaba sin probar nada: su script previo usaba `require("atob")`, que choca con el `atob` global del sandbox de Newman; el script fallaba, el token quedaba vacío y el 401 llegaba por **falta** de token, no por la firma inválida | Revisión del reporte de Newman (1 error de script con 0 fallas) | Script con `CryptoJS` y dos verificaciones nuevas: que el token enviado sí es el alterado y que el código es `TOKEN_INVALIDO` | Corregido |
 
 ### D11: análisis
 
@@ -27,11 +28,17 @@ Cada defecto corregido tiene una prueba que falla si vuelve a aparecer, salvo do
 | `FOR SHARE` en lugar de `FOR UPDATE` al crear una solicitud | 581 ms |
 | Registro agrupado (stdout por pipe es síncrono en Linux) | ~535 ms |
 | Consulta ligera de rider e inventario en Perfiles | 523 ms |
-| Referencia: sin registro de peticiones | 483 ms |
+| Rider e inventario traen el nombre de su dueño: Booking hace 2 llamadas a Perfiles en lugar de 4, y no relee la solicitud después de la transacción | **341 ms** |
 
-La máquina de prueba tiene 2 vCPU: los servicios (~125% de CPU), el generador de carga (~60%) y PostgreSQL (~60%)
-compiten por los mismos núcleos. Siguiente paso: medir con el generador en otra máquina; si sigue arriba de 500 ms,
-agregar un caché corto de riders en Booking.
+**Por qué el último cambio fue el que más pesó.** Con 50 usuarios sin pausa, la latencia la decide el rendimiento
+(ley de Little: latencia ≈ usuarios concurrentes / peticiones por segundo). En 2 vCPU el cuello de botella es la CPU,
+así que lo que importa es cuánto trabajo cuesta cada solicitud. Cada creación hacía 4 peticiones HTTP a Perfiles
+(cada una con verificación del JWT, validación, consulta y serialización) para obtener 2 nombres que ya estaban en
+la misma fila que el rider y el inventario. Agregar `bandaNombre` y `foroNombre` a esas respuestas (cambio compatible
+del contrato, versión 1.3.1) quitó la mitad de ese trabajo: el rendimiento subió de ~135 a ~186 solicitudes por segundo.
+
+Lo que **no** se hizo: un caché de perfiles en Booking. Habría bajado más la latencia, pero el rider y el inventario
+se guardan como foto al solicitar (RF-10): un caché haría que esa foto pudiera estar desactualizada.
 
 ## Entregas anteriores
 
