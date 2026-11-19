@@ -1,0 +1,88 @@
+# Integración continua de Backline (RNF-10): corre en cada push a main y en cada pull request.
+#
+#   pruebas          typecheck + 197 pruebas con cobertura contra un PostgreSQL real.
+#                    Falla si la cobertura baja de los umbrales de vitest.config.ts (Booking ≥ 60 %).
+#   punta-a-punta    construye las 4 imágenes, levanta el sistema completo con Compose y corre
+#                    la colección de Postman y la prueba de carga (RNF-05 y RNF-06) contra el Gateway.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    name: Pruebas y cobertura
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # La base de pruebas es la misma de desarrollo: el contenedor de Compose con db/init
+      - name: Levantar PostgreSQL
+        run: |
+          cp .env.example .env
+          docker compose up -d --wait postgres
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:cobertura
+
+      - name: Publicar el reporte de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: cobertura/
+          retention-days: 14
+
+  punta-a-punta:
+    name: Sistema completo (Postman y carga)
+    needs: pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Llaves y configuración
+        run: |
+          cp .env.example .env
+          npm run configurar
+          # Los contenedores corren como uid 1000 y el runner como otro usuario: sin esto,
+          # Identidad no puede leer la llave privada (defecto D10). Solo aceptable en CI y desarrollo.
+          chmod 644 llaves/jwt-privada.pem
+
+      - name: Construir y levantar el sistema completo
+        run: docker compose --profile completo up -d --build --wait
+
+      - run: npm run test:postman
+
+      - name: Prueba de carga
+        run: npm run test:carga
+        env:
+          USUARIOS: 50
+          DURACION: 20
+
+      - name: Registro de los servicios si algo falló
+        if: failure()
+        run: docker compose --profile completo logs --no-color --tail 200
