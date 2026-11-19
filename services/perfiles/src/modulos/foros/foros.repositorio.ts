@@ -34,6 +34,15 @@ const SELECT_FORO = `
     LEFT JOIN foro_genero fg ON fg.foro_id = f.id
     LEFT JOIN genero g ON g.id = fg.genero_id`;
 
+/**
+ * Solo la fecha de actualización de un perfil activo, o undefined si no existe o no está activo.
+ * Basta para el rider o el inventario: no hace falta cargar el perfil con sus géneros (defecto D11).
+ */
+export async function actualizadoSiActivo(id: string): Promise<Date | undefined> {
+  const [fila] = await consultar<{ actualizado_en: Date }>(`SELECT f.actualizado_en FROM foro f WHERE f.id = $1 AND ${ACTIVO}`, [id]);
+  return fila?.actualizado_en;
+}
+
 export async function obtenerActivo(id: string, ejecutor?: Ejecutor): Promise<FilaForo | undefined> {
   const filas = await consultar<FilaForo>(`${SELECT_FORO} WHERE f.id = $1 AND ${ACTIVO} GROUP BY f.id`, [id], ejecutor);
   return filas[0];

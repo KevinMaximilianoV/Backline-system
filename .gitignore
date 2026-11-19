@@ -13,6 +13,7 @@ dist/
 *.tsbuildinfo
 npm-debug.log*
 coverage/
+cobertura/
 
 # Reportes de newman
 newman/

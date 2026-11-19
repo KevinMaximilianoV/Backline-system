@@ -1,5 +1,6 @@
 import type { Server } from "node:http";
 import express, { type Express } from "express";
+import helmet from "helmet";
 import type { Pool } from "pg";
 import { ApiError } from "../errores/ApiError";
 import { correlacion } from "./correlacion";
@@ -25,6 +26,14 @@ export function crearApp(opciones: {
 }): Express {
   const app = express();
   app.disable("x-powered-by"); // no anunciar la tecnología del servidor
+  // Cabeceras de seguridad (defecto D4). Una API solo devuelve JSON: la política más estricta
+  // posible (no cargar nada, no dejarse enmarcar) no le quita nada y cierra puertas si algún
+  // navegador interpretara una respuesta como HTML. El Gateway la relaja solo en /docs.
+  app.use(
+    helmet({
+      contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+    }),
+  );
   if (opciones.confiarEnProxy) app.set("trust proxy", "loopback");
 
   app.use(correlacion);

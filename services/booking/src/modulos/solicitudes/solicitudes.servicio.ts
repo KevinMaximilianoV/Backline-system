@@ -90,7 +90,7 @@ const noExiste = (id: string) => ApiError.noEncontrado(`No existe una solicitud 
  * 1. Lee la franja en Booking: debe existir, estar libre y no haber empezado.
  * 2. Consulta en Perfiles, en paralelo: la banda y su rider, el foro y su inventario.
  * 3. Calcula los faltantes de equipo (RF-10).
- * 4. Abre la transacción, vuelve a bloquear y revisar la franja, y guarda la solicitud,
+ * 4. Abre la transacción, vuelve a revisar la franja con un bloqueo compartido y guarda la solicitud,
  *    su primer cambio de estado y el evento SolicitudCreada. Todo o nada.
  *
  * Las llamadas HTTP van ANTES de la transacción: tener una transacción abierta mientras se espera
@@ -119,7 +119,7 @@ export async function crear(usuario: UsuarioAutenticado, datos: SolicitudNueva, 
 
   try {
     const id = await enTransaccion(async (tx) => {
-      const actual = await franjas.vigenteParaActualizar(datos.franjaId, tx);
+      const actual = await franjas.vigenteCompartida(datos.franjaId, tx);
       if (!actual) throw ApiError.noEncontrado(`No existe una franja vigente con id ${datos.franjaId}.`);
       exigirFranjaDisponible(actual);
 
