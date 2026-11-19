@@ -62,9 +62,9 @@ export async function darDeBaja(usuario: UsuarioAutenticado, id: string): Promis
 }
 
 export async function obtenerRider(id: string) {
-  const banda = await repositorio.obtenerActiva(id);
-  if (!banda) throw noExiste(id);
-  return aRider(id, await repositorio.obtenerRider(id), banda.actualizado_en);
+  const actualizado = await repositorio.actualizadoSiActiva(id);
+  if (!actualizado) throw noExiste(id);
+  return aRider(id, await repositorio.obtenerRider(id), actualizado);
 }
 
 export async function reemplazarRider(usuario: UsuarioAutenticado, id: string, rider: RiderEntrada) {

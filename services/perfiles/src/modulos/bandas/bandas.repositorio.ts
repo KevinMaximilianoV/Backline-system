@@ -34,6 +34,15 @@ const SELECT_BANDA = `
     LEFT JOIN banda_genero bg ON bg.banda_id = b.id
     LEFT JOIN genero g ON g.id = bg.genero_id`;
 
+/**
+ * Solo la fecha de actualización de un perfil activo, o undefined si no existe o no está activo.
+ * Basta para el rider o el inventario: no hace falta cargar el perfil con sus géneros (defecto D11).
+ */
+export async function actualizadoSiActiva(id: string): Promise<Date | undefined> {
+  const [fila] = await consultar<{ actualizado_en: Date }>(`SELECT b.actualizado_en FROM banda b WHERE b.id = $1 AND ${ACTIVA}`, [id]);
+  return fila?.actualizado_en;
+}
+
 export async function obtenerActiva(id: string, ejecutor?: Ejecutor): Promise<FilaBanda | undefined> {
   const filas = await consultar<FilaBanda>(`${SELECT_BANDA} WHERE b.id = $1 AND ${ACTIVA} GROUP BY b.id`, [id], ejecutor);
   return filas[0];

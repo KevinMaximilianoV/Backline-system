@@ -35,6 +35,22 @@ export async function bloquear(id: string, ejecutor: Ejecutor): Promise<FilaFran
   return fila;
 }
 
+/**
+ * Bloqueo COMPARTIDO de la franja vigente (FOR SHARE): varias transacciones pueden tenerlo al
+ * mismo tiempo, pero nadie puede modificar la franja (reservarla, retirarla) mientras lo tengan.
+ * Es lo que necesita crear una solicitud: no cambia la franja, solo exige que siga libre hasta
+ * el COMMIT. Con FOR UPDATE, 50 bandas solicitando la misma franja se formaban en fila
+ * (defecto de rendimiento D11, encontrado con la prueba de carga).
+ */
+export async function vigenteCompartida(id: string, ejecutor: Ejecutor): Promise<FilaFranja | undefined> {
+  const [fila] = await consultar<FilaFranja>(
+    `SELECT ${COLUMNAS} FROM franja WHERE id = $1 AND estado <> 'retirada' FOR SHARE`,
+    [id],
+    ejecutor,
+  );
+  return fila;
+}
+
 /** Una franja retirada no existe para la API: estas consultas no la regresan. */
 export async function vigente(id: string, ejecutor?: Ejecutor): Promise<FilaFranja | undefined> {
   const [fila] = await consultar<FilaFranja>(
