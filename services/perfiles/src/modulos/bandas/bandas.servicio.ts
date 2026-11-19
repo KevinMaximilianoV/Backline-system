@@ -62,9 +62,9 @@ export async function darDeBaja(usuario: UsuarioAutenticado, id: string): Promis
 }
 
 export async function obtenerRider(id: string) {
-  const actualizado = await repositorio.actualizadoSiActiva(id);
-  if (!actualizado) throw noExiste(id);
-  return aRider(id, await repositorio.obtenerRider(id), actualizado);
+  const banda = await repositorio.resumenSiActiva(id);
+  if (!banda) throw noExiste(id);
+  return aRider(id, banda.nombre, await repositorio.obtenerRider(id), banda.actualizado_en);
 }
 
 export async function reemplazarRider(usuario: UsuarioAutenticado, id: string, rider: RiderEntrada) {
@@ -76,6 +76,6 @@ export async function reemplazarRider(usuario: UsuarioAutenticado, id: string, r
     await repositorio.reemplazarRider(id, rider, tx);
     const banda = await repositorio.obtenerActiva(id, tx);
     if (!banda) throw noExiste(id);
-    return aRider(id, await repositorio.obtenerRider(id, tx), banda.actualizado_en);
+    return aRider(id, banda.nombre, await repositorio.obtenerRider(id, tx), banda.actualizado_en);
   });
 }

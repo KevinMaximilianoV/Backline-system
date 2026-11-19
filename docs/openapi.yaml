@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Backline API
-  version: 1.3.0-borrador
+  version: 1.3.1-borrador
   summary: Coordinación de tocadas entre bandas independientes y foros de Querétaro.
   description: |
     Contrato de la API pública de Backline, expuesta por el API Gateway.
@@ -14,6 +14,10 @@ info:
 
     **Documentación interactiva:** el Gateway sirve este contrato con Swagger UI en `/docs`
     (y el YAML en `/docs/openapi.yaml`). Botón **Authorize** → pega el `tokenAcceso` de `POST /sesiones`.
+
+    **Cambios 1.3.1 (corrección de la Entrega 7):** el rider incluye `bandaNombre` y el inventario
+    `foroNombre` (cambio compatible: solo se agregan campos). Así Booking crea una solicitud con 2
+    llamadas a Perfiles en lugar de 4.
 
     **Cambios 1.3.0 (Entrega 7, pruebas y seguridad):** sin cambios de rutas. Un campo de texto con
     caracteres de control (NUL, escape, etc.) responde 422 con el código de campo
@@ -1159,9 +1163,10 @@ components:
               - properties: { cantidad: { maximum: 10 } }
     Rider:
       type: object
-      required: [bandaId, requisitos, actualizadoEn]
+      required: [bandaId, bandaNombre, requisitos, actualizadoEn]
       properties:
         bandaId: { $ref: '#/components/schemas/Id' }
+        bandaNombre: { type: string, description: Nombre de la banda dueña del rider. }
         requisitos: { type: array, items: { $ref: '#/components/schemas/ElementoEquipo' } }
         actualizadoEn: { $ref: '#/components/schemas/Instante' }
     ForoNuevo:
@@ -1232,9 +1237,10 @@ components:
               - properties: { cantidad: { maximum: 50 } }
     Inventario:
       type: object
-      required: [foroId, elementos, actualizadoEn]
+      required: [foroId, foroNombre, elementos, actualizadoEn]
       properties:
         foroId: { $ref: '#/components/schemas/Id' }
+        foroNombre: { type: string, description: Nombre del foro dueño del inventario. }
         elementos: { type: array, items: { $ref: '#/components/schemas/ElementoEquipo' } }
         actualizadoEn: { $ref: '#/components/schemas/Instante' }
 

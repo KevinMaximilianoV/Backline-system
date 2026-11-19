@@ -62,9 +62,9 @@ export async function darDeBaja(usuario: UsuarioAutenticado, id: string): Promis
 }
 
 export async function obtenerInventario(id: string) {
-  const actualizado = await repositorio.actualizadoSiActivo(id);
-  if (!actualizado) throw noExiste(id);
-  return aInventario(id, await repositorio.obtenerInventario(id), actualizado);
+  const foro = await repositorio.resumenSiActivo(id);
+  if (!foro) throw noExiste(id);
+  return aInventario(id, foro.nombre, await repositorio.obtenerInventario(id), foro.actualizado_en);
 }
 
 export async function reemplazarInventario(usuario: UsuarioAutenticado, id: string, inventario: InventarioEntrada) {
@@ -76,6 +76,6 @@ export async function reemplazarInventario(usuario: UsuarioAutenticado, id: stri
     await repositorio.reemplazarInventario(id, inventario, tx);
     const foro = await repositorio.obtenerActivo(id, tx);
     if (!foro) throw noExiste(id);
-    return aInventario(id, await repositorio.obtenerInventario(id, tx), foro.actualizado_en);
+    return aInventario(id, foro.nombre, await repositorio.obtenerInventario(id, tx), foro.actualizado_en);
   });
 }

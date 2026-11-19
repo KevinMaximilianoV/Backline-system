@@ -27,23 +27,29 @@ export interface Contexto {
 
 const ctx = (c: Contexto) => ({ token: c.usuario.token, correlationId: c.correlationId });
 
-/** Banda activa o null si no existe, se dio de baja o está suspendida. */
-export async function banda(id: string, c: Contexto): Promise<Parte | null> {
-  return (await obtener<Parte>(`/bandas/${id}`, ctx(c))).datos;
-}
-
+/** Foro activo o null si no existe, se dio de baja o está suspendido. */
 export async function foro(id: string, c: Contexto): Promise<Parte | null> {
   return (await obtener<Parte>(`/foros/${id}`, ctx(c))).datos;
 }
 
-export async function rider(bandaId: string, c: Contexto): Promise<ElementoEquipo[] | null> {
-  const r = await obtener<{ requisitos: ElementoEquipo[] }>(`/bandas/${bandaId}/rider`, ctx(c));
-  return r.datos ? r.datos.requisitos.map(soloEquipo) : null;
+/** Equipo de un perfil activo, con el nombre de su dueño. null si el perfil no existe o no está activo. */
+export interface EquipoDe {
+  nombre: string;
+  equipo: ElementoEquipo[];
 }
 
-export async function inventario(foroId: string, c: Contexto): Promise<ElementoEquipo[] | null> {
-  const r = await obtener<{ elementos: ElementoEquipo[] }>(`/foros/${foroId}/inventario`, ctx(c));
-  return r.datos ? r.datos.elementos.map(soloEquipo) : null;
+/**
+ * Rider de una banda activa. Trae también el nombre de la banda: con eso, crear una solicitud
+ * necesita 2 llamadas a Perfiles en lugar de 4 (defecto D11).
+ */
+export async function rider(bandaId: string, c: Contexto): Promise<EquipoDe | null> {
+  const r = await obtener<{ bandaNombre: string; requisitos: ElementoEquipo[] }>(`/bandas/${bandaId}/rider`, ctx(c));
+  return r.datos ? { nombre: r.datos.bandaNombre, equipo: r.datos.requisitos.map(soloEquipo) } : null;
+}
+
+export async function inventario(foroId: string, c: Contexto): Promise<EquipoDe | null> {
+  const r = await obtener<{ foroNombre: string; elementos: ElementoEquipo[] }>(`/foros/${foroId}/inventario`, ctx(c));
+  return r.datos ? { nombre: r.datos.foroNombre, equipo: r.datos.elementos.map(soloEquipo) } : null;
 }
 
 /** Solo lo que se guarda en el snapshot: sin notas. */

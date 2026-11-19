@@ -15,9 +15,10 @@ export function aForo(fila: FilaForo) {
   };
 }
 
-export function aInventario(foroId: string, elementos: FilaElemento[], actualizadoEn: Date) {
+export function aInventario(foroId: string, foroNombre: string, elementos: FilaElemento[], actualizadoEn: Date) {
   return {
     foroId,
+    foroNombre,
     elementos: elementos.map((e) => ({
       tipoEquipoId: e.tipo_equipo_id,
       tipoEquipo: e.tipo_equipo,

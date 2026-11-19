@@ -142,7 +142,7 @@ export async function compatibilidad(
   if (!rider) throw ApiError.conflicto("PERFIL_REQUERIDO", "Falta el perfil de la banda", "Crea el perfil de tu banda primero.");
   if (!inventario) throw noExiste(franjaId); // el foro se dio de baja: para la banda, la franja ya no existe
 
-  const faltantes = calcularFaltantes(rider, inventario);
+  const faltantes = calcularFaltantes(rider.equipo, inventario.equipo);
   return { franjaId, bandaId, compatible: faltantes.length === 0, faltantes };
 }
 
