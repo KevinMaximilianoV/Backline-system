@@ -1,7 +1,9 @@
 import { ApiError, crearApp, crearAutenticacion, leerLlave } from "@backline/comun";
+import cors from "cors";
 import type { Express } from "express";
 import { env, RUTAS } from "./config/env";
 import { rutasDisponibilidad } from "./disponibilidad/disponibilidad";
+import { rutasDocumentacion } from "./documentacion";
 import { proxyHacia } from "./proxy";
 
 /**
@@ -36,6 +38,20 @@ export function crearAppGateway(): Express {
       return { servicios: Object.fromEntries(servicios) };
     },
     rutas: (app) => {
+      // CORS (defecto D3): el navegador solo deja que una app web lea la API si el Gateway
+      // lo autoriza. Lista cerrada de orígenes, nunca "*". El token viaja en Authorization,
+      // no en cookies, así que no hace falta credentials. El preflight (OPTIONS) se responde
+      // aquí y nunca llega a los servicios, que lo rechazarían con 401 por no traer token.
+      app.use(
+        cors({
+          origin: env.CORS_ORIGENES,
+          methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+          allowedHeaders: ["Authorization", "Content-Type", "X-Correlation-Id"],
+          exposedHeaders: ["X-Correlation-Id", "Location", "Retry-After"],
+          maxAge: 600,
+        }),
+      );
+      app.use("/docs", rutasDocumentacion(env.OPENAPI_ARCHIVO));
       app.use("/api/v1/disponibilidad", rutasDisponibilidad(autenticar));
       for (const { servicio, url, prefijos } of RUTAS) app.use(proxyHacia(servicio, url, prefijos));
     },

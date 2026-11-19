@@ -4,7 +4,12 @@ import { esErrorDeConexion } from "../errores/erroresBaseDatos";
 
 /** Rutas que no existen: 404 con el mismo formato que cualquier otro error. */
 export function rutaNoEncontrada(req: Request, _res: Response, next: NextFunction): void {
-  next(ApiError.noEncontrado(`No existe la ruta ${req.method} ${req.originalUrl}.`));
+  next(ApiError.noEncontrado(`No existe la ruta ${req.method} ${recortar(req.originalUrl)}.`));
+}
+
+/** La URL viene del cliente: se recorta antes de repetirla en una respuesta (defecto D5). */
+function recortar(texto: string, maximo = 200): string {
+  return texto.length > maximo ? `${texto.slice(0, maximo)}…` : texto;
 }
 
 /**
@@ -40,7 +45,7 @@ export function manejadorErrores(servicio: string) {
         title: problema.titulo,
         status: problema.status,
         detail: problema.detalle,
-        instance: req.originalUrl,
+        instance: recortar(req.originalUrl),
         codigo: problema.codigo,
         correlationId,
         ...(problema.errores ? { errores: problema.errores } : {}),
@@ -67,6 +72,11 @@ function aProblema(error: unknown): Problema {
   if (esErrorDeExpress(error, "entity.too.large")) {
     return { status: 400, codigo: "SOLICITUD_MAL_FORMADA", titulo: "La petición está mal formada", detalle: "El cuerpo excede el tamaño permitido." };
   }
+  // Otros errores del cliente que detecta Express antes de las rutas, como un escape
+  // inválido en la URL (/bandas/%E0%A4%A): traen status 4xx. Antes acababan en 500 (defecto D2).
+  if (statusDeCliente(error)) {
+    return { status: 400, codigo: "SOLICITUD_MAL_FORMADA", titulo: "La petición está mal formada", detalle: "La URL o el cuerpo no se pudieron interpretar." };
+  }
   if (esErrorDeConexion(error)) {
     return {
       status: 503,
@@ -76,6 +86,11 @@ function aProblema(error: unknown): Problema {
     };
   }
   return { status: 500, codigo: "ERROR_INTERNO", titulo: "Error interno", detalle: "Ocurrió un error inesperado. Reporta el correlationId al equipo." };
+}
+
+function statusDeCliente(error: unknown): boolean {
+  const status = typeof error === "object" && error !== null ? (error as { status?: unknown }).status : undefined;
+  return typeof status === "number" && status >= 400 && status < 500;
 }
 
 function esErrorDeExpress(error: unknown, tipo: string): boolean {

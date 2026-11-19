@@ -25,8 +25,17 @@ export interface UsuarioAutenticado {
 export function leerLlave(ruta: string, descripcion: string): string {
   try {
     return readFileSync(ruta, "utf8");
-  } catch {
-    console.error(`No se encontró la ${descripcion} en ${ruta}. Genérala con "npm run configurar" en la raíz del repositorio.`);
+  } catch (error) {
+    // Distinguir "no existe" de "no tengo permiso": son problemas distintos con soluciones distintas (defecto D10)
+    if ((error as NodeJS.ErrnoException).code === "EACCES") {
+      console.error(
+        `No hay permiso para leer la ${descripcion} en ${ruta} (este proceso corre con el uid ${process.getuid?.()}). ` +
+          'En Docker los servicios corren como el usuario "node" (uid 1000); si en tu máquina la llave es de otro usuario, ' +
+          "dale permiso de lectura SOLO en desarrollo: chmod 644 llaves/jwt-privada.pem",
+      );
+    } else {
+      console.error(`No se encontró la ${descripcion} en ${ruta}. Genérala con "npm run configurar" en la raíz del repositorio.`);
+    }
     process.exit(1);
   }
 }
