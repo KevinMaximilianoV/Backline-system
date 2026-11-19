@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Backline API
-  version: 1.1.0-borrador
+  version: 1.2.0-borrador
   summary: Coordinación de tocadas entre bandas independientes y foros de Querétaro.
   description: |
     Contrato de la API pública de Backline, expuesta por el API Gateway.
@@ -11,6 +11,12 @@ info:
     Servicios dueños de cada grupo de rutas: Identidad (`/usuarios`, `/sesiones`),
     Perfiles (`/catalogos`, `/bandas`, `/foros`), Booking (`/franjas`, `/solicitudes`),
     Notificaciones (`/notificaciones`) y API Gateway (`/disponibilidad`).
+
+    **Cambios 1.2.0 (Entrega 6, MVP Backend II):** Identidad, Booking y el Gateway quedan
+    implementados. `POST /bandas` y `POST /foros` ya no reciben `id`: sale del token. Nuevo código
+    `PERFIL_REQUERIDO` (409) cuando una cuenta opera sin haber creado su perfil. El límite de
+    `POST /sesiones` cuenta solo intentos fallidos, por IP y correo, y lo aplica Identidad.
+    `POST /usuarios` ya no devuelve `Location` (no existe `GET /usuarios/{id}`).
 
     **Cambios 1.1.0 (Entrega 5, MVP Backend I):** se agregan E-34 `GET /bandas`,
     E-35 `DELETE /bandas/{bandaId}` y E-36 `DELETE /foros/{foroId}` (baja lógica).
@@ -56,8 +62,6 @@ paths:
       responses:
         '201':
           description: Cuenta creada.
-          headers:
-            Location: { $ref: '#/components/headers/Location' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Usuario' }
@@ -123,7 +127,10 @@ paths:
       tags: [Identidad]
       operationId: iniciarSesion
       summary: E-02 Iniciar sesión
-      description: Limitado a 5 intentos por minuto por dirección IP.
+      description: |
+        Máximo 5 intentos FALLIDOS por minuto para la misma IP y el mismo correo; el sexto responde
+        429 con `Retry-After`. "Correo no registrado" y "contraseña incorrecta" dan el mismo 401.
+        Una cuenta suspendida recibe 403 solo si la contraseña es correcta.
       security: []
       requestBody:
         required: true
@@ -181,9 +188,8 @@ paths:
       operationId: crearBanda
       summary: E-08 Crear el perfil de la propia banda
       description: |
-        El id del perfil es el `sub` del token.
-        **Temporal (Entrega 5):** sin autenticación todavía, el id viaja en el campo `id` del cuerpo.
-        En la Entrega 6 el campo se elimina y el id sale del token.
+        Solo una cuenta con ese rol. El id del perfil es el `sub` del token: cada cuenta crea
+        únicamente su propio perfil, y solo uno.
       requestBody:
         required: true
         content:
@@ -314,9 +320,8 @@ paths:
       operationId: crearForo
       summary: E-13 Crear el perfil del propio foro
       description: |
-        El id del perfil es el `sub` del token.
-        **Temporal (Entrega 5):** sin autenticación todavía, el id viaja en el campo `id` del cuerpo.
-        En la Entrega 6 el campo se elimina y el id sale del token.
+        Solo una cuenta con ese rol. El id del perfil es el `sub` del token: cada cuenta crea
+        únicamente su propio perfil, y solo uno.
       requestBody:
         required: true
         content:
@@ -448,6 +453,10 @@ paths:
       tags: [Booking]
       operationId: publicarFranja
       summary: E-19 Publicar una franja propia (solo foro)
+      description: |
+        El foro debe tener su perfil activo (Booking lo consulta en Perfiles; si no existe, 409
+        `PERFIL_REQUERIDO`). Una franja no se puede encimar con otra vigente del mismo foro (409
+        `FRANJA_TRASLAPADA`, garantizado por la restricción EXCLUDE de la base).
       requestBody:
         required: true
         content:
@@ -544,7 +553,11 @@ paths:
       tags: [Booking]
       operationId: crearSolicitud
       summary: E-24 Enviar una solicitud (solo banda)
-      description: El `bandaId` se toma del token. El servicio recalcula los faltantes con Perfiles.
+      description: |
+        El `bandaId` se toma del token. Booking consulta en Perfiles la banda, su rider, el foro y su
+        inventario, calcula los faltantes y guarda una copia de todo en la solicitud. Responde 409
+        `PERFIL_REQUERIDO` si la banda no tiene perfil, `FRANJA_NO_DISPONIBLE` si la franja ya está
+        reservada o ya empezó, y `SOLICITUD_DUPLICADA` si la banda ya tiene una solicitud activa en ella.
       requestBody:
         required: true
         content:
@@ -969,7 +982,7 @@ components:
           type: string
           enum: [SOLICITUD_MAL_FORMADA, PARAMETRO_INVALIDO, CREDENCIALES_INVALIDAS, TOKEN_INVALIDO,
                  TOKEN_EXPIRADO, CUENTA_SUSPENDIDA, PERMISO_INSUFICIENTE, AUTOSUSPENSION_NO_PERMITIDA,
-                 RECURSO_NO_ENCONTRADO, CORREO_YA_REGISTRADO, PERFIL_YA_EXISTE, FRANJA_TRASLAPADA,
+                 RECURSO_NO_ENCONTRADO, CORREO_YA_REGISTRADO, PERFIL_YA_EXISTE, PERFIL_REQUERIDO, FRANJA_TRASLAPADA,
                  FRANJA_NO_DISPONIBLE, FRANJA_CON_SOLICITUDES, SOLICITUD_DUPLICADA, TRANSICION_NO_PERMITIDA,
                  VALIDACION_FALLIDA, LIMITE_EXCEDIDO, ERROR_INTERNO, SERVICIO_NO_DISPONIBLE]
         correlationId: { type: string, format: uuid }
@@ -1012,7 +1025,7 @@ components:
       required: [correo, contrasena, rol]
       properties:
         correo: { type: string, format: email, maxLength: 254 }
-        contrasena: { type: string, minLength: 8, maxLength: 72, writeOnly: true }
+        contrasena: { type: string, minLength: 8, maxLength: 72, writeOnly: true, description: 'Combina letras y números; como máximo 72 bytes (límite de bcrypt).' }
         rol: { type: string, enum: [banda, foro], description: Las cuentas de administrador no se registran por la API. }
     Usuario:
       type: object
@@ -1073,12 +1086,8 @@ components:
     BandaNueva:
       type: object
       additionalProperties: false
-      required: [id, nombre, integrantes, generoIds]
+      required: [nombre, integrantes, generoIds]
       properties:
-        id:
-          $ref: '#/components/schemas/Id'
-          deprecated: true
-          description: Temporal (Entrega 5). Id de la cuenta dueña; se elimina en la Entrega 6.
         nombre: { type: string, minLength: 2, maxLength: 80 }
         integrantes: { type: integer, minimum: 1, maximum: 20 }
         generoIds: { type: array, minItems: 1, maxItems: 3, uniqueItems: true, items: { type: integer } }
@@ -1146,12 +1155,8 @@ components:
     ForoNuevo:
       type: object
       additionalProperties: false
-      required: [id, nombre, direccion, capacidad, generoIds]
+      required: [nombre, direccion, capacidad, generoIds]
       properties:
-        id:
-          $ref: '#/components/schemas/Id'
-          deprecated: true
-          description: Temporal (Entrega 5). Id de la cuenta dueña; se elimina en la Entrega 6.
         nombre: { type: string, minLength: 2, maxLength: 80 }
         direccion: { type: string, minLength: 1, maxLength: 200 }
         capacidad: { type: integer, minimum: 10, maximum: 5000 }
@@ -1232,7 +1237,7 @@ components:
       type: object
       additionalProperties: false
       required: [inicio, fin]
-      description: El fin es posterior al inicio, la duración es de 12 horas como máximo y el inicio no es pasado.
+      description: El inicio es futuro y a un año como máximo; la franja dura entre 30 minutos y 12 horas.
       properties:
         inicio: { $ref: '#/components/schemas/Instante' }
         fin: { $ref: '#/components/schemas/Instante' }
