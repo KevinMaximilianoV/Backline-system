@@ -1,5 +1,5 @@
-import { consultar, type Ejecutor } from "../db/pool";
-import { ApiError } from "../errores/ApiError";
+import { ApiError, type Ejecutor } from "@backline/comun";
+import { consultar } from "../db/pool";
 
 /** Reglas que comparten bandas y foros: un usuario tiene como máximo un perfil, de banda o de foro. */
 
@@ -19,7 +19,7 @@ async function perfilConId(id: string, ejecutor: Ejecutor): Promise<TipoPerfil |
 }
 
 export function perfilDuplicado(tipo: TipoPerfil, id: string): ApiError {
-  return ApiError.conflicto("PERFIL_YA_EXISTE", "El perfil ya existe", `Ya existe un perfil de ${tipo} con id ${id}.`);
+  return ApiError.conflicto("PERFIL_YA_EXISTE", "El perfil ya existe", `Tu cuenta ya tiene un perfil de ${tipo} (id ${id}). Modifícalo con PATCH en lugar de crear otro.`);
 }
 
 /** Lanza 409 si el id ya tiene un perfil de cualquier tipo. */
@@ -30,7 +30,7 @@ export async function exigirIdLibre(tipo: TipoPerfil, id: string, ejecutor: Ejec
     throw ApiError.conflicto(
       "PERFIL_YA_EXISTE",
       "El perfil ya existe",
-      `El id ${id} ya tiene un perfil de ${existente}; una cuenta solo puede tener un perfil.`,
+      `Tu cuenta ya tiene un perfil de ${existente}; una cuenta solo puede tener un perfil.`,
     );
   }
 }

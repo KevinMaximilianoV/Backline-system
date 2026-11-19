@@ -1,31 +1,26 @@
-import express, { type Express } from "express";
-import { correlacion } from "./middlewares/correlacion";
-import { manejadorErrores, rutaNoEncontrada } from "./middlewares/errores";
-import { registroPeticiones } from "./middlewares/registro";
+import { crearApp, crearAutenticacion, leerLlave } from "@backline/comun";
+import type { Express } from "express";
+import { env } from "./config/env";
+import { pool } from "./db/pool";
 import { rutasBandas } from "./modulos/bandas/bandas.rutas";
 import { rutasCatalogos } from "./modulos/catalogos/catalogos.rutas";
 import { rutasForos } from "./modulos/foros/foros.rutas";
-import { rutasSalud } from "./modulos/salud/salud.rutas";
 
 /**
- * Arma la aplicación sin abrir el puerto. Separarla de server.ts permite
- * levantarla en pruebas sin escuchar en la red.
- * El orden de los middlewares importa: correlación y registro primero, errores al final.
+ * Arma la aplicación sin abrir el puerto (server.ts lo abre).
+ * Todo lo que cuelga de /api/v1 exige un token válido; /salud no.
  */
-export function crearApp(): Express {
-  const app = express();
-  app.disable("x-powered-by"); // no anunciar la tecnología del servidor
+export function crearAppPerfiles(): Express {
+  const autenticar = crearAutenticacion(leerLlave(env.JWT_LLAVE_PUBLICA, "llave pública de los tokens"));
 
-  app.use(correlacion);
-  app.use(registroPeticiones);
-  app.use(express.json({ limit: "100kb" }));
-
-  app.use("/salud", rutasSalud);
-  app.use("/api/v1/catalogos", rutasCatalogos);
-  app.use("/api/v1/bandas", rutasBandas);
-  app.use("/api/v1/foros", rutasForos);
-
-  app.use(rutaNoEncontrada);
-  app.use(manejadorErrores);
-  return app;
+  return crearApp({
+    servicio: "perfiles",
+    pool,
+    rutas: (app) => {
+      app.use("/api/v1", autenticar);
+      app.use("/api/v1/catalogos", rutasCatalogos);
+      app.use("/api/v1/bandas", rutasBandas);
+      app.use("/api/v1/foros", rutasForos);
+    },
+  });
 }

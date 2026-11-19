@@ -1,7 +1,7 @@
 import { enTransaccion } from "../../db/pool";
-import { ApiError } from "../../errores/ApiError";
-import { esValorDuplicado } from "../../errores/erroresBaseDatos";
-import type { Pagina } from "../../comun/esquemas";
+import { ApiError, exigirDueno, type UsuarioAutenticado } from "@backline/comun";
+import { esValorDuplicado } from "@backline/comun";
+import type { Pagina } from "@backline/comun";
 import { exigirIdLibre, perfilDuplicado } from "../../comun/perfiles";
 import { exigirGeneros, exigirTiposEquipo } from "../catalogos/catalogos.servicio";
 import type { CrearForo, InventarioEntrada, ListarForos, ModificarForo } from "./foros.esquemas";
@@ -25,24 +25,27 @@ export async function obtener(id: string): Promise<Foro> {
   return aForo(fila);
 }
 
-export async function crear(datos: CrearForo): Promise<Foro> {
+/** El perfil toma el id de la cuenta del token: cada cuenta crea solo su propio perfil. */
+export async function crear(usuario: UsuarioAutenticado, datos: CrearForo): Promise<Foro> {
+  const id = usuario.id;
   try {
     return await enTransaccion(async (tx) => {
-      await exigirIdLibre("foro", datos.id, tx);
+      await exigirIdLibre("foro", id, tx);
       await exigirGeneros(datos.generoIds, tx);
-      await repositorio.insertar(datos, tx);
-      const creado = await repositorio.obtenerActivo(datos.id, tx);
+      await repositorio.insertar(id, datos, tx);
+      const creado = await repositorio.obtenerActivo(id, tx);
       if (!creado) throw new Error("El foro recién creado no se pudo leer");
       return aForo(creado);
     });
   } catch (error) {
     // Dos peticiones simultáneas con el mismo id: la base rechaza la segunda (llave primaria)
-    if (esValorDuplicado(error)) throw perfilDuplicado("foro", datos.id);
+    if (esValorDuplicado(error)) throw perfilDuplicado("foro", id);
     throw error;
   }
 }
 
-export async function modificar(id: string, cambios: ModificarForo): Promise<Foro> {
+export async function modificar(usuario: UsuarioAutenticado, id: string, cambios: ModificarForo): Promise<Foro> {
+  exigirDueno(usuario, id, "este perfil");
   return enTransaccion(async (tx) => {
     if (!(await repositorio.bloquearActivo(id, tx))) throw noExiste(id);
     if (cambios.generoIds) await exigirGeneros(cambios.generoIds, tx);
@@ -53,7 +56,8 @@ export async function modificar(id: string, cambios: ModificarForo): Promise<For
   });
 }
 
-export async function darDeBaja(id: string): Promise<void> {
+export async function darDeBaja(usuario: UsuarioAutenticado, id: string): Promise<void> {
+  exigirDueno(usuario, id, "este perfil");
   if (!(await repositorio.darDeBaja(id))) throw noExiste(id);
 }
 
@@ -63,7 +67,8 @@ export async function obtenerInventario(id: string) {
   return aInventario(id, await repositorio.obtenerInventario(id), foro.actualizado_en);
 }
 
-export async function reemplazarInventario(id: string, inventario: InventarioEntrada) {
+export async function reemplazarInventario(usuario: UsuarioAutenticado, id: string, inventario: InventarioEntrada) {
+  exigirDueno(usuario, id, "este perfil");
   return enTransaccion(async (tx) => {
     // El bloqueo evita que dos PUT simultáneos del mismo inventario se mezclen
     if (!(await repositorio.bloquearActivo(id, tx))) throw noExiste(id);

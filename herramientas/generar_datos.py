@@ -217,10 +217,13 @@ for i, b in enumerate(BANDAS.values()):
 for i, f in enumerate(FOROS.values()):
     usuarios.append(dict(id=f["id"], correo=f["correo"], rol="foro", estado="activa", creado=t("2026-10-03 10:00") + timedelta(hours=i)))
 
-HASH = "$2b$10$hashDeEjemploGeneradoPorBcryptNoEsUnaContrasenaReal{:02d}"
-s = encabezado(20, "backline_identidad", "10 usuarios: 1 administrador, 6 bandas (1 suspendida) y 3 foros.")
+# Hash bcrypt (costo 10) de la contraseña de desarrollo "Backline.2026", la misma para todas
+# las cuentas de prueba. Es un valor fijo para que el script genere siempre el mismo SQL.
+# Solo para desarrollo: en producción no existen estas cuentas.
+HASH = "$2b$10$eYNrLwVymWwX7rwktG.hSOK7WzpANxyNcMhzJwHOF8PQrtaTCip0u"
+s = encabezado(20, "backline_identidad", "10 usuarios: 1 administrador, 6 bandas (1 suspendida) y 3 foros.\n-- Contraseña de todas las cuentas de prueba: Backline.2026")
 s += "INSERT INTO usuario (id, correo, hash_contrasena, rol, estado, creado_en, actualizado_en) VALUES\n"
-s += ",\n".join(f"  ({q(u['id'])}, {q(u['correo'])}, {q(HASH.format(i))}, {q(u['rol'])}, {q(u['estado'])}, {q(u['creado'])}, {q(u['creado'])})"
+s += ",\n".join(f"  ({q(u['id'])}, {q(u['correo'])}, {q(HASH)}, {q(u['rol'])}, {q(u['estado'])}, {q(u['creado'])}, {q(u['creado'])})"
                 for i, u in enumerate(usuarios)) + ";\n\n"
 s += "INSERT INTO evento_pendiente (id, tipo, payload, creado_en, publicado_en) VALUES\n"
 ev_id = []

@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { validar } from "../../middlewares/validar";
+import { requerirRol, validar } from "@backline/comun";
 import { crearForoBody, foroParams, inventarioBody, listarForosQuery, modificarForoBody } from "./foros.esquemas";
 import * as controlador from "./foros.controlador";
 
 export const rutasForos = Router();
 
 rutasForos.get("/", validar({ query: listarForosQuery }), controlador.listar);
-rutasForos.post("/", validar({ body: crearForoBody }), controlador.crear);
+rutasForos.post("/", requerirRol("foro"), validar({ body: crearForoBody }), controlador.crear);
 rutasForos.get("/:foroId", validar({ params: foroParams }), controlador.obtener);
 rutasForos.patch("/:foroId", validar({ params: foroParams, body: modificarForoBody }), controlador.modificar);
 rutasForos.delete("/:foroId", validar({ params: foroParams }), controlador.darDeBaja);

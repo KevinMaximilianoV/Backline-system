@@ -23,6 +23,11 @@ function codigo(error: unknown): string | undefined {
   return typeof error === "object" && error !== null ? (error as ErrorPg).code : undefined;
 }
 
+/** Nombre de la restricción violada (por ejemplo ux_solicitud_franja_reservada). */
+export function restriccion(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null ? (error as ErrorPg).constraint : undefined;
+}
+
 /** La base no está disponible: el problema no es del cliente y se puede reintentar. */
 export function esErrorDeConexion(error: unknown): boolean {
   const c = codigo(error);
@@ -31,12 +36,22 @@ export function esErrorDeConexion(error: unknown): boolean {
   return error instanceof Error && /timeout exceeded when trying to connect/i.test(error.message);
 }
 
-/** Violación de una restricción UNIQUE o PRIMARY KEY. */
+/** Violación de una restricción UNIQUE o PRIMARY KEY (23505). */
 export function esValorDuplicado(error: unknown): boolean {
   return codigo(error) === "23505";
 }
 
-/** Violación de llave foránea. */
+/** Violación de una restricción EXCLUDE (23P01), por ejemplo dos franjas que se enciman. */
+export function esExclusionViolada(error: unknown): boolean {
+  return codigo(error) === "23P01";
+}
+
+/** Violación de un CHECK o de un trigger que lanza check_violation (23514). */
+export function esCheckViolado(error: unknown): boolean {
+  return codigo(error) === "23514";
+}
+
+/** Violación de llave foránea (23503). */
 export function esLlaveForaneaInvalida(error: unknown): boolean {
   return codigo(error) === "23503";
 }

@@ -1,0 +1,28 @@
+{
+  "name": "@backline/gateway",
+  "version": "0.2.0",
+  "private": true,
+  "description": "API Gateway de Backline: punto de entrada único, enrutamiento y disponibilidad",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@backline/comun": "0.2.0",
+    "express": "5.3.0",
+    "http-proxy-middleware": "3.0.10",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

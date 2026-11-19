@@ -1,7 +1,7 @@
 import { enTransaccion } from "../../db/pool";
-import { ApiError } from "../../errores/ApiError";
-import { esValorDuplicado } from "../../errores/erroresBaseDatos";
-import type { Pagina } from "../../comun/esquemas";
+import { ApiError, exigirDueno, type UsuarioAutenticado } from "@backline/comun";
+import { esValorDuplicado } from "@backline/comun";
+import type { Pagina } from "@backline/comun";
 import { exigirIdLibre, perfilDuplicado } from "../../comun/perfiles";
 import { exigirGeneros, exigirTiposEquipo } from "../catalogos/catalogos.servicio";
 import type { CrearBanda, ListarBandas, ModificarBanda, RiderEntrada } from "./bandas.esquemas";
@@ -25,24 +25,27 @@ export async function obtener(id: string): Promise<Banda> {
   return aBanda(fila);
 }
 
-export async function crear(datos: CrearBanda): Promise<Banda> {
+/** El perfil toma el id de la cuenta del token: cada cuenta crea solo su propio perfil. */
+export async function crear(usuario: UsuarioAutenticado, datos: CrearBanda): Promise<Banda> {
+  const id = usuario.id;
   try {
     return await enTransaccion(async (tx) => {
-      await exigirIdLibre("banda", datos.id, tx);
+      await exigirIdLibre("banda", id, tx);
       await exigirGeneros(datos.generoIds, tx);
-      await repositorio.insertar(datos, tx);
-      const creada = await repositorio.obtenerActiva(datos.id, tx);
+      await repositorio.insertar(id, datos, tx);
+      const creada = await repositorio.obtenerActiva(id, tx);
       if (!creada) throw new Error("La banda recién creada no se pudo leer");
       return aBanda(creada);
     });
   } catch (error) {
     // Dos peticiones simultáneas con el mismo id: la base rechaza la segunda (llave primaria)
-    if (esValorDuplicado(error)) throw perfilDuplicado("banda", datos.id);
+    if (esValorDuplicado(error)) throw perfilDuplicado("banda", id);
     throw error;
   }
 }
 
-export async function modificar(id: string, cambios: ModificarBanda): Promise<Banda> {
+export async function modificar(usuario: UsuarioAutenticado, id: string, cambios: ModificarBanda): Promise<Banda> {
+  exigirDueno(usuario, id, "este perfil");
   return enTransaccion(async (tx) => {
     if (!(await repositorio.bloquearActiva(id, tx))) throw noExiste(id);
     if (cambios.generoIds) await exigirGeneros(cambios.generoIds, tx);
@@ -53,7 +56,8 @@ export async function modificar(id: string, cambios: ModificarBanda): Promise<Ba
   });
 }
 
-export async function darDeBaja(id: string): Promise<void> {
+export async function darDeBaja(usuario: UsuarioAutenticado, id: string): Promise<void> {
+  exigirDueno(usuario, id, "este perfil");
   if (!(await repositorio.darDeBaja(id))) throw noExiste(id);
 }
 
@@ -63,7 +67,8 @@ export async function obtenerRider(id: string) {
   return aRider(id, await repositorio.obtenerRider(id), banda.actualizado_en);
 }
 
-export async function reemplazarRider(id: string, rider: RiderEntrada) {
+export async function reemplazarRider(usuario: UsuarioAutenticado, id: string, rider: RiderEntrada) {
+  exigirDueno(usuario, id, "este perfil");
   return enTransaccion(async (tx) => {
     // El bloqueo evita que dos PUT simultáneos del mismo rider se mezclen
     if (!(await repositorio.bloquearActiva(id, tx))) throw noExiste(id);

@@ -1,4 +1,5 @@
-import { consultar, type Ejecutor } from "../../db/pool";
+import type { Ejecutor } from "@backline/comun";
+import { consultar } from "../../db/pool";
 
 export interface FilaGenero {
   id: number;
