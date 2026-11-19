@@ -12,6 +12,7 @@ import { LLAVES_PRUEBA } from "./pruebas/llaves.ts";
  */
 const raiz = import.meta.dirname;
 const base = (puerto: number) => ({ NODE_ENV: "test", PORT: String(puerto), JWT_LLAVE_PUBLICA: LLAVES_PRUEBA.publica });
+const gateway = { ...base(43104), CORS_ORIGENES: "http://localhost:5173", OPENAPI_ARCHIVO: resolve(raiz, "docs/openapi.yaml") };
 const db = (servicio: string) =>
   process.env[`DATABASE_URL_${servicio.toUpperCase()}`] ??
   `postgresql://svc_${servicio}:dev_${servicio}@localhost:5432/backline_${servicio}`;
@@ -55,13 +56,22 @@ export default defineConfig({
         test: {
           name: "gateway",
           include: ["services/gateway/src/**/*.test.ts"],
+          exclude: ["services/gateway/src/**/*.composicion.test.ts"],
+          // Servicios en un puerto cerrado: se prueba qué hace el Gateway cuando no responden
+          env: { ...gateway, IDENTIDAD_URL: "http://localhost:1", PERFILES_URL: "http://localhost:1", BOOKING_URL: "http://localhost:1" },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "gateway-composicion",
+          include: ["services/gateway/src/**/*.composicion.test.ts"],
+          // Servicios falsos que levanta la propia prueba: se prueba el reenvío y la composición
           env: {
-            ...base(43104),
-            IDENTIDAD_URL: "http://localhost:1",
-            PERFILES_URL: "http://localhost:1",
-            BOOKING_URL: "http://localhost:1",
-            CORS_ORIGENES: "http://localhost:5173",
-            OPENAPI_ARCHIVO: resolve(raiz, "docs/openapi.yaml"),
+            ...gateway,
+            IDENTIDAD_URL: "http://localhost:43211",
+            PERFILES_URL: "http://localhost:43212",
+            BOOKING_URL: "http://localhost:43213",
           },
         },
       },
@@ -74,7 +84,8 @@ export default defineConfig({
       reporter: ["text-summary", "text", "html", "json-summary"],
       reportsDirectory: "cobertura",
       thresholds: {
-        lines: 70,
+        lines: 80,
+        "services/gateway/src/**": { lines: 80 },
         // RNF-10: la lógica de Booking tiene al menos 60 % de cobertura
         "services/booking/src/**": { lines: 60, functions: 60, branches: 60 },
       },

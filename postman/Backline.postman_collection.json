@@ -737,14 +737,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Cambia el rol dentro del token sin volver a firmarlo: la firma ya no coincide",
-                  "const atob = require(\"atob\");",
-                  "const btoa = require(\"btoa\");",
+                  "// Cambia el rol dentro del token sin volver a firmarlo: la firma ya no coincide.",
+                  "// CryptoJS viene en el sandbox de Postman y de Newman (atob/btoa no están en todas las versiones).",
+                  "const desdeBase64Url = (t) => CryptoJS.enc.Base64.parse(t.replace(/-/g, \"+\").replace(/_/g, \"/\")).toString(CryptoJS.enc.Utf8);",
+                  "const aBase64Url = (t) => CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(t)).replace(/=+$/, \"\").replace(/\\+/g, \"-\").replace(/\\//g, \"_\");",
                   "const [h, p, f] = pm.collectionVariables.get(\"tokenBanda\").split(\".\");",
-                  "const datos = JSON.parse(atob(p.replace(/-/g, \"+\").replace(/_/g, \"/\")));",
+                  "const datos = JSON.parse(desdeBase64Url(p));",
                   "datos.rol = \"admin\";",
-                  "const nuevo = btoa(JSON.stringify(datos)).replace(/=+$/, \"\").replace(/\\+/g, \"-\").replace(/\\//g, \"_\");",
-                  "pm.collectionVariables.set(\"tokenAlterado\", [h, nuevo, f].join(\".\"));"
+                  "pm.collectionVariables.set(\"tokenAlterado\", [h, aBase64Url(JSON.stringify(datos)), f].join(\".\"));"
                 ]
               }
             },
@@ -753,6 +753,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// Sin esta verificación, un error en el script previo dejaría la variable vacía y el 401 llegaría por falta de token",
+                  "pm.test(\"El token enviado es el de la banda con el rol cambiado\", () => {",
+                  "  const alterado = pm.collectionVariables.get(\"tokenAlterado\");",
+                  "  pm.expect(alterado).to.be.a(\"string\").and.not.equal(pm.collectionVariables.get(\"tokenBanda\"));",
+                  "  pm.expect(alterado.split(\".\")).to.have.lengthOf(3);",
+                  "});",
+                  "pm.test(\"Código TOKEN_INVALIDO\", () => pm.expect(pm.response.json().codigo).to.equal(\"TOKEN_INVALIDO\"));",
                   "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
                   "pm.test(\"Error en formato Problem Details\", () => {",
                   "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\");",
