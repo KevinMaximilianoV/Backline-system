@@ -6,7 +6,7 @@
 // Escenarios:
 //   1. Búsqueda: 50 bandas consultan GET /disponibilidad y GET /franjas sin parar (RNF-06).
 //   2. Creación de solicitudes: 50 bandas envían solicitudes a la vez (RNF-06). Cada una
-//      cruza servicios: Booking consulta a Perfiles 4 veces y escribe en una transacción.
+//      cruza servicios: Booking consulta a Perfiles 2 veces (rider e inventario) y escribe en una transacción.
 //   3. Concurrencia: 20 solicitudes de la misma franja se aceptan al mismo tiempo (RNF-05).
 //
 // Criterios (Parte II, Tabla 7): p95 < 500 ms en 1 y 2; exactamente 1 aceptación en 3; 0 errores 5xx.

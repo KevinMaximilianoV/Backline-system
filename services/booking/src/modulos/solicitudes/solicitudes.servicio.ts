@@ -88,7 +88,8 @@ const noExiste = (id: string) => ApiError.noEncontrado(`No existe una solicitud 
  * Una banda pide tocar en una franja. Es la operación que cruza servicios:
  *
  * 1. Lee la franja en Booking: debe existir, estar libre y no haber empezado.
- * 2. Consulta en Perfiles, en paralelo: la banda y su rider, el foro y su inventario.
+ * 2. Consulta en Perfiles, en paralelo: el rider de la banda y el inventario del foro (cada uno trae
+ *    el nombre de su dueño y responde 404 si el perfil no está activo).
  * 3. Calcula los faltantes de equipo (RF-10).
  * 4. Abre la transacción, vuelve a revisar la franja con un bloqueo compartido y guarda la solicitud,
  *    su primer cambio de estado y el evento SolicitudCreada. Todo o nada.
@@ -103,37 +104,42 @@ export async function crear(usuario: UsuarioAutenticado, datos: SolicitudNueva, 
   exigirFranjaDisponible(franja);
 
   const contexto = { usuario, correlationId };
-  const [banda, rider, foro, inventario] = await Promise.all([
-    perfiles.banda(usuario.id, contexto),
-    perfiles.rider(usuario.id, contexto),
-    perfiles.foro(franja.foro_id, contexto),
-    perfiles.inventario(franja.foro_id, contexto),
-  ]);
-  if (!banda || !rider) {
+  const [banda, foro] = await Promise.all([perfiles.rider(usuario.id, contexto), perfiles.inventario(franja.foro_id, contexto)]);
+  if (!banda) {
     throw ApiError.conflicto("PERFIL_REQUERIDO", "Falta el perfil de la banda", "Crea el perfil de tu banda antes de enviar solicitudes.");
   }
-  if (!foro || !inventario) {
+  if (!foro) {
     throw ApiError.conflicto("FRANJA_NO_DISPONIBLE", "La franja no está disponible", "El foro de esta franja ya no está activo.");
   }
-  const faltantes = calcularFaltantes(rider, inventario);
+  const faltantes = calcularFaltantes(banda.equipo, foro.equipo);
 
   try {
-    const id = await enTransaccion(async (tx) => {
+    const creada = await enTransaccion(async (tx) => {
       const actual = await franjas.vigenteCompartida(datos.franjaId, tx);
       if (!actual) throw ApiError.noEncontrado(`No existe una franja vigente con id ${datos.franjaId}.`);
       exigirFranjaDisponible(actual);
 
       const id = await repositorio.insertar(
-        { ...datos, foroId: actual.foro_id, bandaId: usuario.id, bandaNombre: banda.nombre, foroNombre: foro.nombre, rider, inventario, faltantes },
+        {
+          ...datos,
+          foroId: actual.foro_id,
+          bandaId: usuario.id,
+          bandaNombre: banda.nombre,
+          foroNombre: foro.nombre,
+          rider: banda.equipo,
+          inventario: foro.equipo,
+          faltantes,
+        },
         tx,
       );
       await repositorio.registrarCambio({ solicitudId: id, anterior: null, nuevo: "solicitada", autor: usuario.id, motivo: null }, tx);
       const creada = await repositorio.porId(id, tx);
       if (!creada) throw new Error("La solicitud recién creada no se pudo leer");
       await registrarEvento("SolicitudCreada", payloadEvento(creada, null, "solicitada", null), tx);
-      return id;
+      return creada;
     });
-    return aSolicitud((await repositorio.porId(id))!);
+    // Lo leído dentro de la transacción es lo que quedó guardado: no hace falta volver a consultarlo
+    return aSolicitud(creada);
   } catch (error) {
     // ux_solicitud_banda_franja_activa: una banda no puede tener dos solicitudes activas para la misma franja
     if (esValorDuplicado(error) && restriccion(error) === "ux_solicitud_banda_franja_activa") {

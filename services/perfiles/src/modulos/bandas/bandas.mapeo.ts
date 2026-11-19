@@ -18,9 +18,10 @@ export function aBanda(fila: FilaBanda) {
   };
 }
 
-export function aRider(bandaId: string, requisitos: FilaRequisito[], actualizadoEn: Date) {
+export function aRider(bandaId: string, bandaNombre: string, requisitos: FilaRequisito[], actualizadoEn: Date) {
   return {
     bandaId,
+    bandaNombre,
     requisitos: requisitos.map((r) => ({
       tipoEquipoId: r.tipo_equipo_id,
       tipoEquipo: r.tipo_equipo,

@@ -164,6 +164,15 @@ describe("foros, inventario y catálogos", () => {
     expect((await request(app).get(`/api/v1/bandas/${banda.id}/rider`).set(foro.auth)).body.requisitos).toHaveLength(1);
   });
 
+  it("rider e inventario traen el nombre de su dueño (Booking lo usa para no pedir el perfil aparte)", async () => {
+    const perfilBanda = await request(app).get(`/api/v1/bandas/${banda.id}`).set(foro.auth);
+    const perfilForo = await request(app).get(`/api/v1/foros/${foro.id}`).set(banda.auth);
+    const rider = await request(app).get(`/api/v1/bandas/${banda.id}/rider`).set(foro.auth);
+    const inventario = await request(app).get(`/api/v1/foros/${foro.id}/inventario`).set(banda.auth);
+    expect(rider.body).toMatchObject({ bandaId: banda.id, bandaNombre: perfilBanda.body.nombre });
+    expect(inventario.body).toMatchObject({ foroId: foro.id, foroNombre: perfilForo.body.nombre });
+  });
+
   it("la lista de bandas filtra por género y pagina", async () => {
     const r = await request(app).get("/api/v1/bandas?genero=3&porPagina=2").set(foro.auth);
     expect(r.body.paginacion.porPagina).toBe(2);

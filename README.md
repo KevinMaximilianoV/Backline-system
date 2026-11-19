@@ -56,6 +56,7 @@ Backline-system/
 ├── Dockerfile                Una imagen por servicio (--build-arg SERVICIO=...)
 ├── docker-compose.yml        PostgreSQL + Adminer; con --profile completo, también los 4 servicios
 ├── vitest.config.ts          Pruebas automatizadas: un proyecto por paquete
+├── .github/workflows/        Integración continua (GitHub Actions)
 ├── db/
 │   ├── init/                 Scripts SQL: única fuente de verdad del esquema
 │   └── verificacion/         Pruebas de restricciones y su salida esperada
@@ -122,6 +123,13 @@ Cuatro niveles, de más rápidos y numerosos a más lentos y completos:
 | Punta a punta | Postman / Newman | El flujo de negocio completo a través del Gateway | `npm run test:postman` |
 | Carga | Script de Node (`pruebas/carga/carga.mjs`) | p95 de búsqueda y creación con 50 usuarios; 20 aceptaciones simultáneas | `npm run test:carga` |
 
+### Integración continua
+
+`.github/workflows/ci.yml` corre en cada pull request y en cada push a `main`, en dos trabajos:
+
+1. **Pruebas y cobertura**: levanta PostgreSQL con Compose, corre `npm run typecheck` y `npm run test:cobertura`. Falla si alguna prueba falla o si la cobertura baja de los umbrales (RNF-10). El reporte queda como artefacto `cobertura`.
+2. **Sistema completo**: construye las cuatro imágenes, levanta `--profile completo` y corre la colección de Postman y la prueba de carga contra el Gateway.
+
 ### Pruebas automatizadas (Vitest)
 
 Las de integración necesitan la base de datos arriba (`docker compose up -d --wait`). No necesitan los servicios corriendo: cada prueba levanta la aplicación en memoria. Las de Booking levantan además un Perfiles real en el puerto 43202, porque Booking lo consulta por HTTP.
@@ -141,7 +149,9 @@ Algunos casos que vale la pena conocer:
 - **JWT**: token alterado, firmado con otra llave, `alg: none`, confusión HS256 con la llave pública, emisor o audiencia ajenos, vencido.
 - **RNF-01**: ninguna contraseña en la base deja de ser un hash bcrypt.
 
-Umbrales de cobertura (la corrida falla si no se alcanzan): 70% de líneas en general y **60% en Booking** (RNF-10). Resultado actual: ~90% en general, ~90% en Booking.
+Umbrales de cobertura (la corrida falla si no se alcanzan): 80% de líneas en general y en el Gateway, y **60% en Booking** (RNF-10). Resultado actual: 92% en general, 90% en Booking, 99% en el Gateway.
+
+Las pruebas del Gateway se dividen en dos proyectos: `gateway` apunta a servicios caídos (503, CORS, `/docs`) y `gateway-composicion` levanta servicios falsos para probar el reenvío y la composición de `/disponibilidad`.
 
 ### Prueba de carga
 
@@ -163,11 +173,11 @@ Resultado de referencia en una máquina de 2 vCPU con todo el sistema y el gener
 
 | Escenario | Peticiones | p50 | p95 | Errores 5xx | Criterio |
 |---|---|---|---|---|---|
-| Búsqueda | ~9,500 | 140 ms | 334 ms | 0 | Cumple |
-| Creación de solicitudes | 3,000 | 352 ms | 523 ms | 0 | **No cumple** (D11, abierto) |
+| Búsqueda | ~9,900 | 138 ms | 304 ms | 0 | Cumple |
+| Creación de solicitudes | 3,000 | 264 ms | 341 ms | 0 | Cumple |
 | 20 aceptaciones simultáneas | 20 | — | — | 0 | Cumple: 1 × 201, 19 × 409 |
 
-El análisis está en [docs/defectos.md](docs/defectos.md) (D11).
+La creación llegó a 593 ms en la primera medición; el análisis de cómo bajó a 341 ms está en [docs/defectos.md](docs/defectos.md) (D11).
 
 ### Pruebas con Postman
 
@@ -304,9 +314,7 @@ Cada respuesta lleva `X-Correlation-Id`. El Gateway lo reenvía a los servicios,
 
 ## Pendientes conocidos
 
-- **D11**: el p95 de creación de solicitudes queda en ~523 ms con 50 usuarios en 2 vCPU (meta: 500 ms). Ver [docs/defectos.md](docs/defectos.md).
 - **Servicio de Notificaciones**: Booking ya escribe los eventos en su outbox; falta el servicio que los consuma.
-- **Integración continua**: las pruebas y la cobertura corren localmente; falta el flujo de GitHub Actions que las corra en cada PR.
 
 ## Solución de problemas
 
