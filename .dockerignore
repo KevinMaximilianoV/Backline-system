@@ -1,0 +1,15 @@
+# Lo que nunca entra a una imagen: dependencias locales, compilados, secretos y reportes
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+llaves
+*.pem
+cobertura
+newman
+.git
+.github
+db
+postman
+herramientas

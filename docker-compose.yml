@@ -1,7 +1,25 @@
-# Backline · base de datos para desarrollo
-# Levantar:            docker compose up -d --wait
-# Reiniciar desde cero: docker compose down -v && docker compose up -d
+# Backline · Docker Compose
+#
+# Desarrollo (solo la base; los servicios corren con npm run dev):
+#   docker compose up -d --wait
+#
+# Sistema completo en contenedores (base + 4 servicios), como se desplegaría:
+#   npm run configurar                                   # llaves de los tokens, una sola vez
+#   docker compose --profile completo up -d --build --wait
+#   → http://localhost:8080/api/v1   ·   documentación en http://localhost:8080/docs
+#
+# Reiniciar la base desde cero: docker compose down -v
 name: backline-db
+
+# Variables comunes de los servicios. Las contraseñas vienen de .env; si no están, se usan las de
+# desarrollo (dev_*). En un despliegue real se definen en .env con valores propios.
+x-servicio: &servicio
+  profiles: [completo]
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+  secrets: [jwt_publica]
 
 services:
   postgres:
@@ -13,6 +31,11 @@ services:
       POSTGRES_DB: postgres
       TZ: America/Mexico_City
       PGTZ: America/Mexico_City
+      # 00_bases_y_roles.sql las lee con \getenv para crear el usuario de cada servicio
+      SVC_IDENTIDAD_PASSWORD: ${SVC_IDENTIDAD_PASSWORD:-dev_identidad}
+      SVC_PERFILES_PASSWORD: ${SVC_PERFILES_PASSWORD:-dev_perfiles}
+      SVC_BOOKING_PASSWORD: ${SVC_BOOKING_PASSWORD:-dev_booking}
+      SVC_NOTIFICACIONES_PASSWORD: ${SVC_NOTIFICACIONES_PASSWORD:-dev_notificaciones}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -38,6 +61,78 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # ------------------------------------------------------------ servicios (perfil "completo")
+  # Solo el Gateway publica un puerto. Identidad, Perfiles y Booking viven en la red interna
+  # de Compose: desde fuera no se puede llegar a ellos sin pasar por el Gateway.
+
+  identidad:
+    <<: *servicio
+    build: { context: ., args: { SERVICIO: identidad } }
+    image: backline-identidad
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://svc_identidad:${SVC_IDENTIDAD_PASSWORD:-dev_identidad}@postgres:5432/backline_identidad
+      JWT_LLAVE_PRIVADA: /run/secrets/jwt_privada
+      JWT_LLAVE_PUBLICA: /run/secrets/jwt_publica
+    # Solo Identidad recibe la llave privada: es el único que emite tokens
+    secrets: [jwt_privada, jwt_publica]
+    healthcheck: &salud
+      test: ["CMD", "node", "-e", "fetch('http://localhost:'+process.env.PORT+'/salud').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  perfiles:
+    <<: *servicio
+    build: { context: ., args: { SERVICIO: perfiles } }
+    image: backline-perfiles
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgresql://svc_perfiles:${SVC_PERFILES_PASSWORD:-dev_perfiles}@postgres:5432/backline_perfiles
+      JWT_LLAVE_PUBLICA: /run/secrets/jwt_publica
+    healthcheck: *salud
+
+  booking:
+    <<: *servicio
+    build: { context: ., args: { SERVICIO: booking } }
+    image: backline-booking
+    environment:
+      PORT: 3003
+      DATABASE_URL: postgresql://svc_booking:${SVC_BOOKING_PASSWORD:-dev_booking}@postgres:5432/backline_booking
+      JWT_LLAVE_PUBLICA: /run/secrets/jwt_publica
+      PERFILES_URL: http://perfiles:3002
+    depends_on:
+      postgres: { condition: service_healthy }
+      perfiles: { condition: service_healthy }
+    healthcheck: *salud
+
+  gateway:
+    <<: *servicio
+    build: { context: ., args: { SERVICIO: gateway } }
+    image: backline-gateway
+    environment:
+      PORT: 8080
+      JWT_LLAVE_PUBLICA: /run/secrets/jwt_publica
+      IDENTIDAD_URL: http://identidad:3001
+      PERFILES_URL: http://perfiles:3002
+      BOOKING_URL: http://booking:3003
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:5173}
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      identidad: { condition: service_healthy }
+      perfiles: { condition: service_healthy }
+      booking: { condition: service_healthy }
+    healthcheck: *salud
+
+# Las llaves se montan como secretos (archivos en /run/secrets), nunca como parte de la imagen.
+# Las genera "npm run configurar" en llaves/, que está fuera de Git.
+secrets:
+  jwt_privada:
+    file: ./llaves/jwt-privada.pem
+  jwt_publica:
+    file: ./llaves/jwt-publica.pem
 
 volumes:
   datos:
