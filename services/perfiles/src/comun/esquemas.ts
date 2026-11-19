@@ -1,18 +1,9 @@
+import { textoOpcional } from "@backline/comun";
 import { z } from "zod";
 
-/** Piezas de validación que comparten bandas y foros. */
+export { paginacionQuery, textoOpcional, uuid } from "@backline/comun";
 
-/**
- * Id con forma de UUID (8-4-4-4-12 hexadecimal). Se usa z.guid() y no z.uuid() porque
- * z.uuid() exige la versión y variante del RFC 9562, y PostgreSQL acepta cualquier UUID
- * (los datos de prueba usan ids como 11111111-1111-1111-1111-111111111111).
- */
-export const uuid = z.guid();
-
-export const paginacionQuery = z.object({
-  pagina: z.coerce.number().int().min(1).default(1),
-  porPagina: z.coerce.number().int().min(1).max(100).default(20),
-});
+/** Piezas de validación que comparten bandas y foros (las generales vienen de @backline/comun). */
 
 export const generoQuery = z.coerce.number().int().positive().optional();
 
@@ -22,8 +13,6 @@ export function idsSinRepetir(nombre: string) {
     .array(z.number().int().positive())
     .refine((ids) => new Set(ids).size === ids.length, { message: `No repitas ${nombre}.` });
 }
-
-export const textoOpcional = (max: number) => z.string().trim().max(max).nullable().optional();
 
 export const enlace = z
   .string()
@@ -48,9 +37,4 @@ export function listaEquipo(maximoPorElemento: number) {
     .refine((items) => new Set(items.map((i) => i.tipoEquipoId)).size === items.length, {
       message: "Un tipo de equipo no se puede repetir.",
     });
-}
-
-export interface Pagina<T> {
-  datos: T[];
-  paginacion: { pagina: number; porPagina: number; total: number };
 }

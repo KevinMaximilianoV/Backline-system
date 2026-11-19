@@ -3,6 +3,10 @@
 .env.*
 !.env.example
 
+# Llaves de firma de tokens: cada quien genera las suyas con npm run configurar
+llaves/
+*.pem
+
 # Node
 node_modules/
 dist/

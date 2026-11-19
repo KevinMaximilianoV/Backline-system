@@ -1,4 +1,5 @@
-import { consultar, type Ejecutor } from "../../db/pool";
+import type { Ejecutor } from "@backline/comun";
+import { consultar } from "../../db/pool";
 import type { CrearForo, InventarioEntrada, ListarForos, ModificarForo } from "./foros.esquemas";
 
 /** Acceso a datos de foros. Solo SQL parametrizado: ningún valor se concatena en la consulta. */
@@ -52,13 +53,13 @@ export async function listarActivos(filtros: ListarForos): Promise<{ filas: Fila
   return { filas, total: conteo?.total ?? 0 };
 }
 
-export async function insertar(datos: CrearForo, ejecutor: Ejecutor): Promise<void> {
+export async function insertar(id: string, datos: CrearForo, ejecutor: Ejecutor): Promise<void> {
   await consultar(
     `INSERT INTO foro (id, nombre, direccion, capacidad, descripcion) VALUES ($1, $2, $3, $4, $5)`,
-    [datos.id, datos.nombre, datos.direccion, datos.capacidad, datos.descripcion ?? null],
+    [id, datos.nombre, datos.direccion, datos.capacidad, datos.descripcion ?? null],
     ejecutor,
   );
-  await reemplazarGeneros(datos.id, datos.generoIds, ejecutor);
+  await reemplazarGeneros(id, datos.generoIds, ejecutor);
 }
 
 /** Bloquea la fila del foro activo hasta que termine la transacción; devuelve false si no existe. */

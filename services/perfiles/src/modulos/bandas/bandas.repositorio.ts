@@ -1,4 +1,5 @@
-import { consultar, type Ejecutor } from "../../db/pool";
+import type { Ejecutor } from "@backline/comun";
+import { consultar } from "../../db/pool";
 import type { CrearBanda, ListarBandas, ModificarBanda, RiderEntrada } from "./bandas.esquemas";
 
 /** Acceso a datos de bandas. Solo SQL parametrizado: ningún valor se concatena en la consulta. */
@@ -50,13 +51,13 @@ export async function listarActivas(filtros: ListarBandas): Promise<{ filas: Fil
   return { filas, total: conteo?.total ?? 0 };
 }
 
-export async function insertar(datos: CrearBanda, ejecutor: Ejecutor): Promise<void> {
+export async function insertar(id: string, datos: CrearBanda, ejecutor: Ejecutor): Promise<void> {
   await consultar(
     `INSERT INTO banda (id, nombre, integrantes, enlace_demo, descripcion) VALUES ($1, $2, $3, $4, $5)`,
-    [datos.id, datos.nombre, datos.integrantes, datos.enlaceDemo ?? null, datos.descripcion ?? null],
+    [id, datos.nombre, datos.integrantes, datos.enlaceDemo ?? null, datos.descripcion ?? null],
     ejecutor,
   );
-  await reemplazarGeneros(datos.id, datos.generoIds, ejecutor);
+  await reemplazarGeneros(id, datos.generoIds, ejecutor);
 }
 
 /** Bloquea la fila de la banda activa hasta que termine la transacción; devuelve false si no existe. */

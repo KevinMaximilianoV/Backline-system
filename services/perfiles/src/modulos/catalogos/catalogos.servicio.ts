@@ -1,5 +1,5 @@
-import { ApiError } from "../../errores/ApiError";
-import type { Ejecutor } from "../../db/pool";
+import { ApiError } from "@backline/comun";
+import type { Ejecutor } from "@backline/comun";
 import * as repositorio from "./catalogos.repositorio";
 
 export async function generos() {

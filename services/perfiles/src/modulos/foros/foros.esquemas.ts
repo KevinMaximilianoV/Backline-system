@@ -25,14 +25,8 @@ const camposForo = {
   descripcion: textoOpcional(500),
 };
 
-export const crearForoBody = z
-  .object({
-    // TEMPORAL (Entrega 5): sin autenticación, el id de la cuenta dueña llega en el cuerpo.
-    // En la Entrega 6 se toma del token JWT y este campo se elimina (ver docs/openapi.yaml).
-    id: uuid,
-    ...camposForo,
-  })
-  .strict();
+/** El id del perfil no se envía: es el id del usuario del token (la cuenta dueña). */
+export const crearForoBody = z.object(camposForo).strict();
 
 export const modificarForoBody = z
   .object(camposForo)

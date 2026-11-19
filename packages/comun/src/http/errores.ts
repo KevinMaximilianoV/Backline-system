@@ -10,38 +10,42 @@ export function rutaNoEncontrada(req: Request, _res: Response, next: NextFunctio
 /**
  * Último middleware: convierte cualquier error en Problem Details (RFC 9457).
  * Express 5 envía aquí también los errores de los controladores async, sin try/catch.
+ * Es el único lugar donde se escribe una respuesta de error: así todas tienen el mismo formato.
  */
-export function manejadorErrores(error: unknown, req: Request, res: Response, _next: NextFunction): void {
-  const correlationId = String(res.locals.correlationId ?? "");
-  const problema = aProblema(error);
+export function manejadorErrores(servicio: string) {
+  return (error: unknown, req: Request, res: Response, _next: NextFunction): void => {
+    const correlationId = String(res.locals.correlationId ?? "");
+    const problema = aProblema(error);
 
-  if (problema.status >= 500) {
-    // El detalle técnico va al registro, nunca al cliente
-    console.error(
-      JSON.stringify({
-        nivel: "error",
-        servicio: "perfiles",
+    if (problema.status >= 500) {
+      // El detalle técnico va al registro, nunca al cliente
+      console.error(
+        JSON.stringify({
+          nivel: "error",
+          servicio,
+          correlationId,
+          ruta: `${req.method} ${req.originalUrl}`,
+          error: error instanceof Error ? { nombre: error.name, mensaje: error.message, pila: error.stack } : String(error),
+        }),
+      );
+    }
+    if (problema.status === 401) res.setHeader("WWW-Authenticate", 'Bearer realm="backline"');
+    if (problema.status === 503) res.setHeader("Retry-After", "30");
+
+    res
+      .status(problema.status)
+      .type("application/problem+json")
+      .json({
+        type: `https://api.backline.mx/errores/${problema.codigo.toLowerCase().replaceAll("_", "-")}`,
+        title: problema.titulo,
+        status: problema.status,
+        detail: problema.detalle,
+        instance: req.originalUrl,
+        codigo: problema.codigo,
         correlationId,
-        ruta: `${req.method} ${req.originalUrl}`,
-        error: error instanceof Error ? { nombre: error.name, mensaje: error.message, pila: error.stack } : String(error),
-      }),
-    );
-  }
-  if (problema.status === 503) res.setHeader("Retry-After", "30");
-
-  res
-    .status(problema.status)
-    .type("application/problem+json")
-    .json({
-      type: `https://api.backline.mx/errores/${problema.codigo.toLowerCase().replaceAll("_", "-")}`,
-      title: problema.titulo,
-      status: problema.status,
-      detail: problema.detalle,
-      instance: req.originalUrl,
-      codigo: problema.codigo,
-      correlationId,
-      ...(problema.errores ? { errores: problema.errores } : {}),
-    });
+        ...(problema.errores ? { errores: problema.errores } : {}),
+      });
+  };
 }
 
 interface Problema {

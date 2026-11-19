@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { validado } from "../../middlewares/validar";
+import { usuarioActual, validado } from "@backline/comun";
 import { crearForoBody, foroParams, inventarioBody, listarForosQuery, modificarForoBody } from "./foros.esquemas";
 import * as servicio from "./foros.servicio";
 
@@ -15,7 +15,7 @@ export async function listar(_req: Request, res: Response): Promise<void> {
 
 /** E-13 POST /foros */
 export async function crear(_req: Request, res: Response): Promise<void> {
-  const foro = await servicio.crear(validado(res, "body", crearForoBody));
+  const foro = await servicio.crear(usuarioActual(res), validado(res, "body", crearForoBody));
   res.status(201).location(`/api/v1/foros/${foro.id}`).json(foro);
 }
 
@@ -28,13 +28,13 @@ export async function obtener(_req: Request, res: Response): Promise<void> {
 /** E-16 PATCH /foros/{foroId} */
 export async function modificar(_req: Request, res: Response): Promise<void> {
   const { foroId } = validado(res, "params", foroParams);
-  res.json(await servicio.modificar(foroId, validado(res, "body", modificarForoBody)));
+  res.json(await servicio.modificar(usuarioActual(res), foroId, validado(res, "body", modificarForoBody)));
 }
 
 /** DELETE /foros/{foroId} (agregado en la Entrega 5): baja lógica */
 export async function darDeBaja(_req: Request, res: Response): Promise<void> {
   const { foroId } = validado(res, "params", foroParams);
-  await servicio.darDeBaja(foroId);
+  await servicio.darDeBaja(usuarioActual(res), foroId);
   res.status(204).end();
 }
 
@@ -47,5 +47,5 @@ export async function obtenerInventario(_req: Request, res: Response): Promise<v
 /** E-18 PUT /foros/{foroId}/inventario */
 export async function reemplazarInventario(_req: Request, res: Response): Promise<void> {
   const { foroId } = validado(res, "params", foroParams);
-  res.json(await servicio.reemplazarInventario(foroId, validado(res, "body", inventarioBody)));
+  res.json(await servicio.reemplazarInventario(usuarioActual(res), foroId, validado(res, "body", inventarioBody)));
 }
