@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Backline API
-  version: 1.2.0-borrador
+  version: 1.3.0-borrador
   summary: Coordinación de tocadas entre bandas independientes y foros de Querétaro.
   description: |
     Contrato de la API pública de Backline, expuesta por el API Gateway.
@@ -11,6 +11,18 @@ info:
     Servicios dueños de cada grupo de rutas: Identidad (`/usuarios`, `/sesiones`),
     Perfiles (`/catalogos`, `/bandas`, `/foros`), Booking (`/franjas`, `/solicitudes`),
     Notificaciones (`/notificaciones`) y API Gateway (`/disponibilidad`).
+
+    **Documentación interactiva:** el Gateway sirve este contrato con Swagger UI en `/docs`
+    (y el YAML en `/docs/openapi.yaml`). Botón **Authorize** → pega el `tokenAcceso` de `POST /sesiones`.
+
+    **Cambios 1.3.0 (Entrega 7, pruebas y seguridad):** sin cambios de rutas. Un campo de texto con
+    caracteres de control (NUL, escape, etc.) responde 422 con el código de campo
+    `CARACTER_NO_PERMITIDO`; en parámetros o query, 400 `PARAMETRO_INVALIDO`. Una URL mal codificada
+    responde 400 `SOLICITUD_MAL_FORMADA` (antes, 500). Todas las respuestas llevan encabezados de
+    seguridad (`Content-Security-Policy`, `X-Content-Type-Options`, ...). El Gateway responde CORS
+    solo a los orígenes de `CORS_ORIGENES` y expone `X-Correlation-Id`, `Location` y `Retry-After`.
+    Notificaciones (`/notificaciones`) sigue en el contrato pero no está implementado: el Gateway
+    responde 404.
 
     **Cambios 1.2.0 (Entrega 6, MVP Backend II):** Identidad, Booking y el Gateway quedan
     implementados. `POST /bandas` y `POST /foros` ya no reciben `id`: sale del token. Nuevo código
