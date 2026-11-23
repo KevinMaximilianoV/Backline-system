@@ -40,3 +40,4 @@ Thumbs.db
 # Respaldos de draw.io
 *.drawio.bkp
 .$*.drawio
+respaldos/

@@ -1,6 +1,6 @@
 {
   "name": "backline-system",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Backline: plataforma de microservicios para coordinar tocadas entre bandas y foros de Querétaro",
@@ -17,11 +17,14 @@
   "scripts": {
     "postinstall": "npm run build -w @backline/comun",
     "configurar": "node herramientas/configurar.mjs",
+    "db:respaldo": "node herramientas/respaldo.mjs respaldar",
+    "db:restaurar": "node herramientas/respaldo.mjs restaurar",
     "dev": "concurrently -k -n identidad,perfiles,booking,gateway -c blue,green,magenta,yellow \"npm run dev -w @backline/identidad\" \"npm run dev -w @backline/perfiles\" \"npm run dev -w @backline/booking\" \"npm run dev -w @backline/gateway\"",
     "build": "npm run build --workspaces",
     "start": "concurrently -k -n identidad,perfiles,booking,gateway -c blue,green,magenta,yellow \"npm start -w @backline/identidad\" \"npm start -w @backline/perfiles\" \"npm start -w @backline/booking\" \"npm start -w @backline/gateway\"",
     "typecheck": "npm run typecheck --workspaces && tsc -p tsconfig.pruebas.json",
-    "test:postman": "newman run postman/Backline.postman_collection.json -e postman/Backline-local.postman_environment.json",
+    "test:postman": "newman run postman/Backline.postman_collection.json -e postman/Backline-local.postman_environment.json --folder \"0 · Salud y rutas\" --folder \"1 · Identidad: registro, sesión y roles\" --folder \"2 · Perfiles: autorización por rol y por dueño\" --folder \"3 · Flujo completo: de la franja a la tocada confirmada\" --folder \"4 · Administración de cuentas\" --folder \"5 · Freno a la fuerza bruta\"",
+    "test:demo": "newman run postman/Backline.postman_collection.json -e postman/Backline-local.postman_environment.json --folder \"Demo en vivo\"",
     "test": "vitest run",
     "test:unitarias": "SOLO_UNITARIAS=1 vitest run --exclude \"**/*.integracion.test.ts\"",
     "test:cobertura": "vitest run --coverage",

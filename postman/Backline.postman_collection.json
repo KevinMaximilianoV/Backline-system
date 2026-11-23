@@ -2740,6 +2740,1332 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Demo en vivo",
+      "description": "Guion de la demostración de la Entrega 8. Correr las carpetas en orden; cada petición guarda en variables lo que la siguiente necesita, así que cualquiera se puede repetir sola.",
+      "item": [
+        {
+          "name": "0 · Preparar (correr una vez antes de presentar)",
+          "item": [
+            {
+              "name": "Registrar una banda nueva (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/usuarios",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correoBanda}}\",\n  \"contrasena\": \"Tocamos2026\",\n  \"rol\": \"banda\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.collectionVariables.set(\"correoBanda\", `banda.${Date.now()}@prueba.mx`);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Regresa la cuenta sin la contraseña\", () => {",
+                      "  const u = pm.response.json();",
+                      "  pm.expect(u.rol).to.eql(\"banda\");",
+                      "  pm.expect(u.estado).to.eql(\"activa\");",
+                      "  pm.expect(u).to.not.have.any.keys(\"contrasena\", \"hashContrasena\", \"hash_contrasena\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Registrar un foro nuevo (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/usuarios",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correoForo}}\",\n  \"contrasena\": \"ElForo2026\",\n  \"rol\": \"foro\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.collectionVariables.set(\"correoForo\", `foro.${Date.now()}@prueba.mx`);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Sesión de Ruido Blanco, otra banda (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/sesiones",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"ruidoblanco@correo.com\",\n  \"contrasena\": \"{{contrasenaPruebas}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Entrega un token Bearer con su vigencia\", () => {",
+                      "  const s = pm.response.json();",
+                      "  pm.expect(s.tipo).to.eql(\"Bearer\");",
+                      "  pm.expect(s.tokenAcceso.split(\".\")).to.have.length(3);",
+                      "  pm.expect(s.expiraEn).to.eql(3600);",
+                      "});",
+                      "pm.test(\"No se guarda en caché\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\"));",
+                      "pm.collectionVariables.set(\"tokenBanda2\", pm.response.json().tokenAcceso);",
+                      "pm.collectionVariables.set(\"banda2Id\", pm.response.json().usuario.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Sesión de La Bodega, otro foro (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/sesiones",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"labodega@correo.com\",\n  \"contrasena\": \"{{contrasenaPruebas}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Entrega un token Bearer con su vigencia\", () => {",
+                      "  const s = pm.response.json();",
+                      "  pm.expect(s.tipo).to.eql(\"Bearer\");",
+                      "  pm.expect(s.tokenAcceso.split(\".\")).to.have.length(3);",
+                      "  pm.expect(s.expiraEn).to.eql(3600);",
+                      "});",
+                      "pm.test(\"No se guarda en caché\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\"));",
+                      "pm.collectionVariables.set(\"tokenOtroForo\", pm.response.json().tokenAcceso);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "1 · Inicio de sesión y token",
+          "item": [
+            {
+              "name": "La banda inicia sesión: recibe su token (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/sesiones",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correoBanda}}\",\n  \"contrasena\": \"Tocamos2026\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Entrega un token Bearer con su vigencia\", () => {",
+                      "  const s = pm.response.json();",
+                      "  pm.expect(s.tipo).to.eql(\"Bearer\");",
+                      "  pm.expect(s.tokenAcceso.split(\".\")).to.have.length(3);",
+                      "  pm.expect(s.expiraEn).to.eql(3600);",
+                      "});",
+                      "pm.test(\"No se guarda en caché\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\"));",
+                      "pm.collectionVariables.set(\"tokenBanda\", pm.response.json().tokenAcceso);",
+                      "pm.collectionVariables.set(\"bandaId\", pm.response.json().usuario.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "El foro inicia sesión (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/sesiones",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correoForo}}\",\n  \"contrasena\": \"ElForo2026\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Entrega un token Bearer con su vigencia\", () => {",
+                      "  const s = pm.response.json();",
+                      "  pm.expect(s.tipo).to.eql(\"Bearer\");",
+                      "  pm.expect(s.tokenAcceso.split(\".\")).to.have.length(3);",
+                      "  pm.expect(s.expiraEn).to.eql(3600);",
+                      "});",
+                      "pm.test(\"No se guarda en caché\", () => pm.expect(pm.response.headers.get(\"Cache-Control\")).to.eql(\"no-store\"));",
+                      "pm.collectionVariables.set(\"tokenForo\", pm.response.json().tokenAcceso);",
+                      "pm.collectionVariables.set(\"foroId\", pm.response.json().usuario.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Contraseña incorrecta (401)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/sesiones",
+                "auth": {
+                  "type": "noauth"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correoBanda}}\",\n  \"contrasena\": \"NoEsEsta1\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
+                      "pm.test(\"Error en formato Problem Details\", () => {",
+                      "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\");",
+                      "  const p = pm.response.json();",
+                      "  pm.expect(p).to.include.keys(\"type\", \"title\", \"status\", \"detail\", \"instance\", \"codigo\", \"correlationId\");",
+                      "  pm.expect(p.status).to.eql(pm.response.code);",
+                      "});",
+                      "pm.test(\"Código CREDENCIALES_INVALIDAS\", () => pm.expect(pm.response.json().codigo).to.eql(\"CREDENCIALES_INVALIDAS\"));",
+                      "pm.test(\"Pide autenticación Bearer\", () => pm.response.to.have.header(\"WWW-Authenticate\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Token con el rol cambiado a mano (401)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/usuarios/me",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenAlterado}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Cambia el rol dentro del token sin volver a firmarlo: la firma ya no coincide.",
+                      "// CryptoJS viene en el sandbox de Postman y de Newman (atob/btoa no están en todas las versiones).",
+                      "const desdeBase64Url = (t) => CryptoJS.enc.Base64.parse(t.replace(/-/g, \"+\").replace(/_/g, \"/\")).toString(CryptoJS.enc.Utf8);",
+                      "const aBase64Url = (t) => CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(t)).replace(/=+$/, \"\").replace(/\\+/g, \"-\").replace(/\\//g, \"_\");",
+                      "const [h, p, f] = pm.collectionVariables.get(\"tokenBanda\").split(\".\");",
+                      "const datos = JSON.parse(desdeBase64Url(p));",
+                      "datos.rol = \"admin\";",
+                      "pm.collectionVariables.set(\"tokenAlterado\", [h, aBase64Url(JSON.stringify(datos)), f].join(\".\"));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Sin esta verificación, un error en el script previo dejaría la variable vacía y el 401 llegaría por falta de token",
+                      "pm.test(\"El token enviado es el de la banda con el rol cambiado\", () => {",
+                      "  const alterado = pm.collectionVariables.get(\"tokenAlterado\");",
+                      "  pm.expect(alterado).to.be.a(\"string\").and.not.equal(pm.collectionVariables.get(\"tokenBanda\"));",
+                      "  pm.expect(alterado.split(\".\")).to.have.lengthOf(3);",
+                      "});",
+                      "pm.test(\"Código TOKEN_INVALIDO\", () => pm.expect(pm.response.json().codigo).to.equal(\"TOKEN_INVALIDO\"));",
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
+                      "pm.test(\"Error en formato Problem Details\", () => {",
+                      "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\");",
+                      "  const p = pm.response.json();",
+                      "  pm.expect(p).to.include.keys(\"type\", \"title\", \"status\", \"detail\", \"instance\", \"codigo\", \"correlationId\");",
+                      "  pm.expect(p.status).to.eql(pm.response.code);",
+                      "});",
+                      "pm.test(\"Código TOKEN_INVALIDO\", () => pm.expect(pm.response.json().codigo).to.eql(\"TOKEN_INVALIDO\"));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "2 · Perfiles: CRUD y permisos",
+          "item": [
+            {
+              "name": "Crear: perfil de la banda (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/bandas",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nombre\": \"Los de Prueba\",\n  \"integrantes\": 4,\n  \"generoIds\": [\n    1,\n    3\n  ],\n  \"enlaceDemo\": \"https://ejemplo.com/demo\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"El perfil tiene el id de la cuenta\", () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"bandaId\")));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Consultar: perfil de la banda (200)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/bandas/{{bandaId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Es la banda que se creó\", () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"bandaId\")));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Modificar: la banda cambia su perfil (200)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/bandas/{{bandaId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"integrantes\": 5\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Aplicó el cambio\", () => pm.expect(pm.response.json().integrantes).to.eql(5));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "La banda registra su rider (200)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/bandas/{{bandaId}}/rider",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"requisitos\": [\n    {\n      \"tipoEquipoId\": 1,\n      \"cantidad\": 1\n    },\n    {\n      \"tipoEquipoId\": 3,\n      \"cantidad\": 3\n    },\n    {\n      \"tipoEquipoId\": 9,\n      \"cantidad\": 1\n    }\n  ]\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Crear: perfil del foro (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/foros",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nombre\": \"Foro de Prueba\",\n  \"direccion\": \"Av. Universidad 100, Querétaro\",\n  \"capacidad\": 150,\n  \"generoIds\": [\n    1,\n    3\n  ]\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "El foro registra su inventario (200)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/foros/{{foroId}}/inventario",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"elementos\": [\n    {\n      \"tipoEquipoId\": 1,\n      \"cantidad\": 1\n    },\n    {\n      \"tipoEquipoId\": 3,\n      \"cantidad\": 1\n    },\n    {\n      \"tipoEquipoId\": 2,\n      \"cantidad\": 1\n    }\n  ]\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Permisos: una banda intenta cambiar el perfil del foro (403)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/foros/{{foroId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"capacidad\": 10\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                      "pm.test(\"Error en formato Problem Details\", () => {",
+                      "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\");",
+                      "  const p = pm.response.json();",
+                      "  pm.expect(p).to.include.keys(\"type\", \"title\", \"status\", \"detail\", \"instance\", \"codigo\", \"correlationId\");",
+                      "  pm.expect(p.status).to.eql(pm.response.code);",
+                      "});",
+                      "pm.test(\"Código PERMISO_INSUFICIENTE\", () => pm.expect(pm.response.json().codigo).to.eql(\"PERMISO_INSUFICIENTE\"));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "3 · Flujo principal: de la franja a la tocada",
+          "item": [
+            {
+              "name": "1. El foro publica una franja libre (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/franjas",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"inicio\": \"{{inicio}}\",\n  \"fin\": \"{{fin}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Una fecha 45 días adelante, a las 21:00 de Querétaro: siempre futura, sin importar cuándo se corra",
+                      "const d = new Date(Date.now() + 45 * 24 * 3600 * 1000);",
+                      "const dia = d.toISOString().slice(0, 10);",
+                      "pm.collectionVariables.set(\"fecha\", dia);",
+                      "pm.collectionVariables.set(\"inicio\", `${dia}T21:00:00-06:00`);",
+                      "pm.collectionVariables.set(\"fin\", `${dia}T23:30:00-06:00`);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Franja libre del foro del token\", () => {",
+                      "  const f = pm.response.json();",
+                      "  pm.expect(f.estado).to.eql(\"libre\");",
+                      "  pm.expect(f.foroId).to.eql(pm.collectionVariables.get(\"foroId\"));",
+                      "});",
+                      "pm.test(\"Location apunta a la franja\", () => pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"/api/v1/franjas/\" + pm.response.json().id));",
+                      "pm.collectionVariables.set(\"franjaId\", pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Regla: una franja que se encima con otra (409)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/franjas",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"inicio\": \"{{inicioEncimado}}\",\n  \"fin\": \"{{finEncimado}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"inicioEncimado\", pm.collectionVariables.get(\"fecha\") + \"T22:00:00-06:00\");",
+                      "pm.variables.set(\"finEncimado\", pm.collectionVariables.get(\"fecha\") + \"T23:59:00-06:00\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));",
+                      "pm.test(\"Error en formato Problem Details\", () => {",
+                      "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\");",
+                      "  const p = pm.response.json();",
+                      "  pm.expect(p).to.include.keys(\"type\", \"title\", \"status\", \"detail\", \"instance\", \"codigo\", \"correlationId\");",
+                      "  pm.expect(p.status).to.eql(pm.response.code);",
+                      "});",
+                      "pm.test(\"Código FRANJA_TRASLAPADA\", () => pm.expect(pm.response.json().codigo).to.eql(\"FRANJA_TRASLAPADA\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Permisos: una banda intenta publicar una franja (403)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/franjas",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"inicio\": \"{{inicio}}\",\n  \"fin\": \"{{fin}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                      "pm.test(\"Error en formato Problem Details\", () => {",
+                      "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\");",
+                      "  const p = pm.response.json();",
+                      "  pm.expect(p).to.include.keys(\"type\", \"title\", \"status\", \"detail\", \"instance\", \"codigo\", \"correlationId\");",
+                      "  pm.expect(p.status).to.eql(pm.response.code);",
+                      "});",
+                      "pm.test(\"Código PERMISO_INSUFICIENTE\", () => pm.expect(pm.response.json().codigo).to.eql(\"PERMISO_INSUFICIENTE\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "2. La banda busca foros disponibles ese día (200)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/disponibilidad?fecha={{fecha}}&genero=3",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "El Gateway compone la respuesta: franjas libres de Booking + datos del foro de Perfiles."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Aparece el foro con su franja libre\", () => {",
+                      "  const item = pm.response.json().datos.find(d => d.foro.id === pm.collectionVariables.get(\"foroId\"));",
+                      "  pm.expect(item, \"el foro nuevo\").to.exist;",
+                      "  pm.expect(item.foro.generos).to.include(\"Punk\");",
+                      "  pm.expect(item.franjasLibres.map(f => f.id)).to.include(pm.collectionVariables.get(\"franjaId\"));",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "3. La banda revisa qué equipo le faltaría (200)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/franjas/{{franjaId}}/compatibilidad?bandaId={{bandaId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Compara el rider con el inventario\", () => {",
+                      "  const c = pm.response.json();",
+                      "  pm.expect(c.compatible).to.be.false;",
+                      "  pm.expect(c.faltantes).to.deep.include({ tipoEquipoId: 3, tipoEquipo: \"Monitor de piso\", requerido: 3, disponible: 1, faltan: 2 });",
+                      "  pm.expect(c.faltantes.map(f => f.tipoEquipoId)).to.include(9);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "4. La banda envía la solicitud (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/solicitudes",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"franjaId\": \"{{franjaId}}\",\n  \"tipoAcuerdo\": \"pago_fijo\",\n  \"montoMxn\": 2500,\n  \"notas\": \"Set de 45 minutos.\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Queda solicitada, con nombres y faltantes calculados por el servidor\", () => {",
+                      "  const s = pm.response.json();",
+                      "  pm.expect(s.estado).to.eql(\"solicitada\");",
+                      "  pm.expect(s.banda).to.eql({ id: pm.collectionVariables.get(\"bandaId\"), nombre: \"Los de Prueba\" });",
+                      "  pm.expect(s.foro.nombre).to.eql(\"Foro de Prueba\");",
+                      "  pm.expect(s.montoMxn).to.eql(2500);",
+                      "  pm.expect(s.faltantes.reduce((n, f) => n + f.faltan, 0)).to.eql(3);",
+                      "  pm.expect(s.riderAlSolicitar).to.have.length(3);",
+                      "});",
+                      "pm.collectionVariables.set(\"solicitudId\", pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "5. Otra banda (Ruido Blanco) pide la misma franja (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/solicitudes",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda2}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"franjaId\": \"{{franjaId}}\",\n  \"tipoAcuerdo\": \"porcentaje_taquilla\",\n  \"porcentaje\": 60\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.collectionVariables.set(\"solicitud2Id\", pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Permisos: otro foro intenta aceptarla (403)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/solicitudes/{{solicitudId}}/cambios-estado",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenOtroForo}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"estadoNuevo\": \"aceptada\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                      "pm.test(\"Error en formato Problem Details\", () => {",
+                      "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\");",
+                      "  const p = pm.response.json();",
+                      "  pm.expect(p).to.include.keys(\"type\", \"title\", \"status\", \"detail\", \"instance\", \"codigo\", \"correlationId\");",
+                      "  pm.expect(p.status).to.eql(pm.response.code);",
+                      "});",
+                      "pm.test(\"Código PERMISO_INSUFICIENTE\", () => pm.expect(pm.response.json().codigo).to.eql(\"PERMISO_INSUFICIENTE\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "6. El foro acepta: reserva la franja y rechaza a la otra banda (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/solicitudes/{{solicitudId}}/cambios-estado",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Una transacción: solicitud aceptada + franja reservada + las demás pendientes rechazadas + historial + eventos.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"estadoNuevo\": \"aceptada\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Efectos en otros recursos\", () => {",
+                      "  const c = pm.response.json();",
+                      "  pm.expect(c).to.include({ estadoAnterior: \"solicitada\", estadoNuevo: \"aceptada\", autorUsuarioId: pm.collectionVariables.get(\"foroId\") });",
+                      "  pm.expect(c.efectos.franjaEstado).to.eql(\"reservada\");",
+                      "  pm.expect(c.efectos.solicitudesRechazadas).to.eql([pm.collectionVariables.get(\"solicitud2Id\")]);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "7. La solicitud de Ruido Blanco quedó rechazada (200)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/solicitudes/{{solicitud2Id}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda2}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"rechazada\", () => pm.expect(pm.response.json().estado).to.eql(\"rechazada\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Error real: aceptar otra vez (409)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/solicitudes/{{solicitud2Id}}/cambios-estado",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"estadoNuevo\": \"aceptada\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));",
+                      "pm.test(\"Error en formato Problem Details\", () => {",
+                      "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\");",
+                      "  const p = pm.response.json();",
+                      "  pm.expect(p).to.include.keys(\"type\", \"title\", \"status\", \"detail\", \"instance\", \"codigo\", \"correlationId\");",
+                      "  pm.expect(p.status).to.eql(pm.response.code);",
+                      "});",
+                      "pm.test(\"Código TRANSICION_NO_PERMITIDA\", () => pm.expect(pm.response.json().codigo).to.eql(\"TRANSICION_NO_PERMITIDA\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "8. La banda confirma (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/solicitudes/{{solicitudId}}/cambios-estado",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"estadoNuevo\": \"confirmada\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"confirmada\", () => pm.expect(pm.response.json().estadoNuevo).to.eql(\"confirmada\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "9. Historial completo de la solicitud (200)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/solicitudes/{{solicitudId}}/cambios-estado",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"solicitada → aceptada → confirmada, cada uno con su autor\", () => {",
+                      "  const h = pm.response.json().datos;",
+                      "  pm.expect(h.map(c => c.estadoNuevo)).to.eql([\"solicitada\", \"aceptada\", \"confirmada\"]);",
+                      "  pm.expect(h.map(c => c.autorUsuarioId)).to.eql([",
+                      "    pm.collectionVariables.get(\"bandaId\"), pm.collectionVariables.get(\"foroId\"), pm.collectionVariables.get(\"bandaId\")]);",
+                      "});",
+                      "pm.collectionVariables.set(\"cambioId\", pm.response.json().datos[1].id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "10. La banda cancela con motivo: la franja se libera (201)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/solicitudes/{{solicitudId}}/cambios-estado",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"estadoNuevo\": \"cancelada\",\n  \"motivo\": \"El baterista se lesionó la muñeca.\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"La franja vuelve a libre\", () => pm.expect(pm.response.json().efectos.franjaEstado).to.eql(\"libre\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "11. La franja aparece libre otra vez (200)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/franjas?foroId={{foroId}}&desde={{fecha}}&hasta={{fecha}}&estado=libre",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"La franja está en la lista de libres\", () => pm.expect(pm.response.json().datos.map(f => f.id)).to.include(pm.collectionVariables.get(\"franjaId\")));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "4 · Baja del perfil (cierre del CRUD)",
+          "item": [
+            {
+              "name": "Eliminar: la banda da de baja su perfil (204)",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}/bandas/{{bandaId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenBanda}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 204 sin cuerpo\", () => { pm.response.to.have.status(204); pm.expect(pm.response.text()).to.eql(\"\"); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "El perfil dado de baja ya no aparece (404)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/bandas/{{bandaId}}",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenForo}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 404\", () => pm.response.to.have.status(404));",
+                      "pm.test(\"Problem Details con código estable\", () => pm.expect(pm.response.json().codigo).to.eql(\"RECURSO_NO_ENCONTRADO\"));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
