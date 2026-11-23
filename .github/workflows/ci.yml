@@ -3,7 +3,8 @@
 #   pruebas          typecheck + 197 pruebas con cobertura contra un PostgreSQL real.
 #                    Falla si la cobertura baja de los umbrales de vitest.config.ts (Booking ≥ 60 %).
 #   punta-a-punta    construye las 4 imágenes, levanta el sistema completo con Compose y corre
-#                    la colección de Postman y la prueba de carga (RNF-05 y RNF-06) contra el Gateway.
+#                    el respaldo de la base, la colección de Postman, el guion de la demo y la prueba de
+#                    carga (RNF-05 y RNF-06) contra el Gateway.
 name: CI
 
 on:
@@ -75,7 +76,14 @@ jobs:
       - name: Construir y levantar el sistema completo
         run: docker compose --profile completo up -d --build --wait
 
+      # Respaldo y restauración: el respaldo debe poder cargarse de vuelta sobre la base viva
+      - name: Respaldo y restauración de la base
+        run: |
+          npm run db:respaldo -- respaldos/ci.sql
+          npm run db:restaurar -- respaldos/ci.sql
+
       - run: npm run test:postman
+      - run: npm run test:demo
 
       - name: Prueba de carga
         run: npm run test:carga

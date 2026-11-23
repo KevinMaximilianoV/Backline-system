@@ -14,9 +14,10 @@ Proyecto de la materia **Arquitectura Orientada a Servicios** · ISW-27 · Equip
 | **Identidad**: registro, inicio de sesión con JWT, administración de cuentas | 3001 | Listo (Entrega 6) |
 | **Perfiles**: catálogos, bandas, foros, rider, inventario, con autorización | 3002 | Listo (Entregas 5 y 6) |
 | **Booking**: franjas, solicitudes, aceptación y su historial | 3003 | Listo (Entrega 6) |
-| **Pruebas, seguridad, documentación y despliegue en contenedores** | — | **Entrega 7** |
-| Notificaciones (consumir los eventos del outbox de Booking) | 3004 | Pendiente: la base y el outbox ya existen; el servicio no |
-| App Flutter | — | Entregas siguientes |
+| Pruebas, seguridad, documentación y despliegue en contenedores | — | Listo (Entrega 7) |
+| **Versión final**: guion de demostración, respaldo de la base, documento técnico final | — | **Entrega 8 · v1.0.0** |
+| Notificaciones (consumir los eventos del outbox de Booking) | 3004 | No implementado: la base y el outbox ya existen; el servicio no |
+| App Flutter | — | No implementado |
 
 ## Inicio rápido
 
@@ -59,6 +60,7 @@ Backline-system/
 ├── .github/workflows/        Integración continua (GitHub Actions)
 ├── db/
 │   ├── init/                 Scripts SQL: única fuente de verdad del esquema
+│   ├── respaldo/             Respaldo con los datos de prueba (npm run db:restaurar)
 │   └── verificacion/         Pruebas de restricciones y su salida esperada
 ├── packages/
 │   └── comun/                Código compartido: errores, validación, JWT, registro, base de datos
@@ -68,12 +70,12 @@ Backline-system/
 │   ├── perfiles/             Bandas y foros (3002)
 │   └── booking/              Franjas y solicitudes (3003)
 ├── pruebas/                  Utilidades de prueba y la prueba de carga
-├── postman/                  Colección y entorno de Postman (pruebas de punta a punta)
+├── postman/                  Colección de Postman: pruebas de punta a punta y guion de la demo
 ├── docs/
 │   ├── openapi.yaml          Contrato de la API (OpenAPI 3.1)
 │   ├── defectos.md           Defectos encontrados y corregidos
 │   └── diagramas/            Diagrama ER
-├── herramientas/             Configuración local y generadores
+├── herramientas/             Configuración local, respaldo de la base y generadores
 └── llaves/                   Llaves de los tokens (se generan; no se suben a Git)
 ```
 
@@ -99,6 +101,9 @@ Todo se corre desde la **raíz** del repositorio.
 | `npm run test:cobertura` | Pruebas con reporte de cobertura en `cobertura/index.html` |
 | `npm run test:postman` | Colección de Postman contra el Gateway (servicios arriba) |
 | `npm run test:carga` | Prueba de carga y concurrencia contra el Gateway (servicios arriba) |
+| `npm run test:demo` | Carpeta **Demo en vivo** de Postman: el guion de la demostración (32 peticiones) |
+| `npm run db:respaldo` | Respaldo de las cuatro bases en `respaldos/` (un solo archivo SQL) |
+| `npm run db:restaurar -- <archivo>` | Carga un respaldo; por ejemplo `db/respaldo/backline-datos-prueba.sql`, el estado inicial con los datos de prueba |
 | `npm run configurar` | Genera llaves y archivos `.env` faltantes; no sobrescribe nada |
 
 ### Cuentas de prueba
@@ -185,7 +190,7 @@ La creación llegó a 593 ms en la primera medición; el análisis de cómo baj�
 2. Selecciona el entorno **Backline local**.
 3. Clic derecho en la colección → **Run collection**.
 
-O desde la terminal: `npm run test:postman`. Cada corrida registra una banda y un foro nuevos, así que se puede repetir sin limpiar la base. La carpeta **3 · Flujo completo** es el escenario de negocio de punta a punta:
+O desde la terminal: `npm run test:postman` (70 peticiones, 301 verificaciones). Cada corrida registra una banda y un foro nuevos, así que se puede repetir sin limpiar la base. La carpeta **3 · Flujo completo** es el escenario de negocio de punta a punta:
 
 ```
 foro publica franja → banda busca disponibilidad → banda revisa compatibilidad de equipo
@@ -193,6 +198,8 @@ foro publica franja → banda busca disponibilidad → banda revisa compatibilid
    (franja reservada + la otra rechazada, en una transacción) → la banda confirma
 → historial → la banda cancela con motivo (la franja se libera)
 ```
+
+La carpeta **Demo en vivo** es el guion de la presentación: el mismo flujo, más inicio de sesión, el CRUD del perfil de banda, los permisos (403) y errores reales (409), en el orden en que se muestran. Primero se corre su subcarpeta **0 · Preparar**; después cada petición se puede repetir sola. Desde la terminal: `npm run test:demo`.
 
 ## Documentación de la API
 
@@ -312,9 +319,33 @@ Todas las respuestas de error usan Problem Details (RFC 9457), `Content-Type: ap
 
 Cada respuesta lleva `X-Correlation-Id`. El Gateway lo reenvía a los servicios, y Booking lo reenvía a Perfiles: con ese id se sigue una misma petición en el registro de los cuatro servicios (RNF-11).
 
-## Pendientes conocidos
+## Respaldo de la base
 
-- **Servicio de Notificaciones**: Booking ya escribe los eventos en su outbox; falta el servicio que los consuma.
+```bash
+npm run db:respaldo                                         # respaldos/backline-AAAAMMDD-HHMM.sql
+npm run db:restaurar -- respaldos/backline-AAAAMMDD-HHMM.sql
+npm run db:restaurar -- db/respaldo/backline-datos-prueba.sql   # volver a los datos de prueba
+```
+
+Usa el contenedor `postgres` de Compose, así que no hace falta instalar PostgreSQL. Si tu PostgreSQL no está en Docker, define `PGHOST`, `PGPORT`, `PGUSER` y `PGPASSWORD` y el script usa `pg_dump` y `psql` de tu máquina. El respaldo no incluye los usuarios de PostgreSQL (`svc_*`): esos los crea `db/init`, así que se restaura sobre una base levantada con Compose.
+
+## Limitaciones conocidas
+
+- **Sin cliente Flutter**: la demostración se hace con Postman y Swagger UI.
+- **Sin servicio de Notificaciones ni broker**: los eventos se guardan en las tablas `evento_pendiente` de Identidad y Booking, pero nadie los consume. Por eso no hay avisos por correo ni en la app, y una cuenta suspendida no puede iniciar sesión pero su perfil sigue apareciendo en búsquedas.
+- **Un token no se puede revocar**: tras suspender una cuenta, su token sirve hasta que vence (máximo 60 minutos).
+- **Una sola instancia** del Gateway y de PostgreSQL; el límite de intentos de inicio de sesión vive en la memoria de Identidad.
+- **El Gateway no termina HTTPS**: en un despliegue real va detrás de un proxy con TLS.
+
+## Mejoras futuras
+
+1. Un relay que lea el outbox y publique en RabbitMQ, y el servicio de Notificaciones que consuma esos eventos.
+2. Que Perfiles consuma `UsuarioSuspendido` y oculte el perfil.
+3. El cliente Flutter.
+4. Tokens de acceso cortos con renovación y lista de revocación.
+5. Para más usuarios: réplicas de cada servicio, el límite de intentos en Redis, una base por servidor con PgBouncer y réplicas de lectura, y la disponibilidad como modelo de lectura precalculado.
+
+El análisis completo está en el documento técnico final.
 
 ## Solución de problemas
 
